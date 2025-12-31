@@ -1,0 +1,21 @@
+services:
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /PrivateDATA/arr/Radarr:/config
+      - /PrivateDATA/jellyfin/Libraries/1:/movies #optional
+      - /PrivateDATA/jellyfin/Downloads:/downloads #optional
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+    networks:
+      - media-net
+
+networks:
+  media-net:
+    external: true

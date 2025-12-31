@@ -1,0 +1,23 @@
+services:
+  db:
+    image: mariadb
+    container_name: mariadb
+    restart: unless-stopped
+    ports:
+      - 3306:3306
+    env_file:
+      - mariadb.env
+
+  nextcloud:
+    image: lscr.io/linuxserver/nextcloud:latest
+    container_name: nextcloud
+    depends_on:
+      - db
+    env_file:
+      - nextcloud.env
+    volumes:
+      - /PrivateDATA/Nextcloud/config:/config
+      - /PrivateDATA/Nextcloud/data:/data
+    ports:
+      - 4432:443
+    restart: unless-stopped
