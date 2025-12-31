@@ -40,7 +40,7 @@ services:
     #   file: hwaccel.ml.yaml
     #   service: cpu # set to one of [armnn, cuda, rocm, openvino, openvino-wsl, rknn] for accelerated inference - use the `-wsl` version for WSL2 where applicable
     volumes:
-      - /PrivateDATA/Immich/machine-learning/model-cache:/cache
+      - /companyname/AppData/Immich/machine-learning/model-cache:/cache
     env_file:
       - .env
     restart: always
