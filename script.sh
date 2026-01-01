@@ -92,10 +92,11 @@ mkdir -p /companyname/Backup/
 mkdir -p /companyname/Media/
 success "Directories created"
 
-#step "Switching to user '$username'"
-#su $username
-#cd /companyname
-#success "Switched to user '$username'"
+# Find all .sh files and add execute permission
+step "Setting execute permissions on .sh files"
+find "/companyname" -type f -name "*.sh" -exec chmod +x {} \;
+success "Execute permissions set"
+
 
 chown -R $username:$username /companyname
 echo -e "${BLUE}Setup completed successfully!${NC}"
