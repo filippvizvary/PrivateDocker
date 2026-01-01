@@ -4,7 +4,7 @@ services:
   immich-server:
     container_name: immich_server
     image: ${IMMICH_SERVER}
-    user: ${USER}
+    user: ${DOCKER_USER}
     volumes:
       - ${UPLOAD_LOCATION}:/data
       - /etc/localtime:/etc/localtime:ro
@@ -24,7 +24,7 @@ services:
   immich-machine-learning:
     container_name: immich_machine_learning
     image: ${IMMICH_ML}
-    user: ${USER}
+    user: ${DOCKER_USER}
     volumes:
       - ${APPDATA}/Immich/ml:/cache
     env_file:
@@ -38,7 +38,7 @@ services:
   redis:
     container_name: immich_redis
     image: ${IMMICH_REDIS}
-    user: ${USER}
+    user: ${DOCKER_USER}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
     restart: always
@@ -46,7 +46,7 @@ services:
   database:
     container_name: immich_postgres
     image: ${IMMICH_POSTGRES}
-    user: ${USER}
+    user: ${DOCKER_USER}
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}

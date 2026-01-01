@@ -2,7 +2,7 @@ services:
   jellyfin:
     image: ${JELLYFIN_SERVER}
     container_name: jellyfin
-    user: ${USER}
+    user: ${DOCKER_USER}
     ports:
       - 8096:8096/tcp
       - 7359:7359/udp
