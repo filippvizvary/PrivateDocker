@@ -39,6 +39,8 @@ services:
     container_name: immich_redis
     image: ${IMMICH_REDIS}
     user: ${DOCKER_USER}
+    volumes:
+      - ${APPDATA}/Immich/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
     restart: always
