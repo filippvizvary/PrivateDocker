@@ -1,10 +1,11 @@
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n
+    image: ${N8N_SERVER}
     container_name: n8n
+    user: ${DOCKER_USER}
     restart: unless-stopped
     ports:
-      - 0.0.0.0:5678:5678
+      - 5678:5678
     environment:
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
       - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}
@@ -13,9 +14,9 @@ services:
       - N8N_RUNNERS_ENABLED=true
       - NODE_ENV=production
       - WEBHOOK_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/
-      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
-      - TZ=${GENERIC_TIMEZONE}
+      - GENERIC_TIMEZONE=${TZ}
+      - TZ=${TZ}
       - N8N_SECURE_COOKIE=false #comment this line if you enable cloudflare access WAN
     volumes:
-      - /PrivateDATA/n8n/n8n_data:/home/node/.n8n
-      - /PrivateDATA/n8n/local-files:/files
+      - ${DATA_LOCATION}:/home/node/.n8n
+      - ${FILES_LOCATION}:/files
