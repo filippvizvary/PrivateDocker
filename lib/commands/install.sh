@@ -54,7 +54,7 @@ cmd_run() {
 
   # Set up rollback on failure
   local install_dir="${INSTALLED_DIR}/${app_name}"
-  local INSTALL_COMPLETE=false
+  INSTALL_COMPLETE=false
 
   cleanup_on_failure() {
     if [[ "$INSTALL_COMPLETE" != "true" ]]; then

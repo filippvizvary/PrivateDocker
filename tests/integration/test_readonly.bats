@@ -116,15 +116,15 @@ APPYAML
 @test "readonly: catalog lists available apps" {
   run "${HOMESTACK_BIN}" catalog list
   assert_success
-  assert_output --partial "testapp"
+  assert_output --partial "Test App"
 }
 
 # --- Search ---
 
 @test "readonly: search finds matching app" {
-  run "${HOMESTACK_BIN}" search testapp
+  run "${HOMESTACK_BIN}" search test
   assert_success
-  assert_output --partial "testapp"
+  assert_output --partial "Test App"
 }
 
 @test "readonly: search with no results" {
