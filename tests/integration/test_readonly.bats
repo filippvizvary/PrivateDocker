@@ -3,8 +3,6 @@
 
 load '../test_helper'
 
-HOMESTACK_BIN="${PROJECT_DIR}/bin/homestack"
-
 setup_file() {
   export TEST_TMPDIR="$(mktemp -d)"
   export HOMESTACK_DIR="$TEST_TMPDIR"
@@ -39,6 +37,7 @@ EOF
   cp -r "${PROJECT_DIR}/bin" "${HOMESTACK_DIR}/"
   cp -r "${PROJECT_DIR}/lib" "${HOMESTACK_DIR}/"
   chmod +x "${HOMESTACK_DIR}/bin/homestack"
+  export HOMESTACK_BIN="${HOMESTACK_DIR}/bin/homestack"
 
   # Initialize DB
   source "${PROJECT_DIR}/lib/yaml.sh"
@@ -83,24 +82,39 @@ teardown_file() {
 }
 
 @test "readonly: list after mock install shows app" {
-  # Manually insert an app record
-  source "${PROJECT_DIR}/lib/yaml.sh"
-  source "${PROJECT_DIR}/lib/core.sh"
-  source "${PROJECT_DIR}/lib/db.sh"
-  db_set_installed "fakeapp" "1.0.0"
+  # Create a mock installed app directory with required files
+  local app_dir="${HOMESTACK_DIR}/installed/fakeapp"
+  mkdir -p "$app_dir"
+  cat > "${app_dir}/compose.yaml" <<COMPOSE
+services:
+  fakeapp:
+    image: nginx:1.27-alpine
+COMPOSE
+  cat > "${app_dir}/app.yaml" <<APPYAML
+name: fakeapp
+display_name: FakeApp
+description: A fake app for testing
+category: other
+port: 19999
+version: 1.0.0
+priority: 50
+appdata_dirs: [fakeapp]
+networks: []
+media_dirs: []
+APPYAML
 
   run "${HOMESTACK_BIN}" list
   assert_success
-  assert_output --partial "fakeapp"
+  assert_output --partial "FakeApp"
 
   # Cleanup
-  db_remove_app "fakeapp"
+  rm -rf "$app_dir"
 }
 
 # --- Catalog ---
 
 @test "readonly: catalog lists available apps" {
-  run "${HOMESTACK_BIN}" catalog
+  run "${HOMESTACK_BIN}" catalog list
   assert_success
   assert_output --partial "testapp"
 }

@@ -4,7 +4,6 @@
 
 load '../test_helper'
 
-HOMESTACK_BIN="${PROJECT_DIR}/bin/homestack"
 TEST_APP="testapp"
 
 setup_file() {
@@ -42,6 +41,7 @@ EOF
   cp -r "${PROJECT_DIR}/bin" "${HOMESTACK_DIR}/"
   cp -r "${PROJECT_DIR}/lib" "${HOMESTACK_DIR}/"
   chmod +x "${HOMESTACK_DIR}/bin/homestack"
+  export HOMESTACK_BIN="${HOMESTACK_DIR}/bin/homestack"
 
   # Initialize DB
   source "${PROJECT_DIR}/lib/yaml.sh"
@@ -65,6 +65,7 @@ teardown_file() {
 
 @test "lifecycle: install testapp succeeds" {
   run "${HOMESTACK_BIN}" install "${TEST_APP}"
+  echo "OUTPUT: $output" >&2
   assert_success
 
   # installed directory should exist
@@ -161,9 +162,7 @@ teardown_file() {
 # --- Remove ---
 
 @test "lifecycle: remove testapp succeeds" {
-  # Use -y to skip confirmation prompt for AppData deletion
-  # Actually the remove command might prompt — pipe yes
-  echo "n" | run "${HOMESTACK_BIN}" remove "${TEST_APP}"
+  run "${HOMESTACK_BIN}" remove "${TEST_APP}" <<< "n"
   assert_success
 
   # installed directory should be gone

@@ -3,8 +3,6 @@
 
 load '../test_helper'
 
-HOMESTACK_BIN="${PROJECT_DIR}/bin/homestack"
-
 setup_file() {
   export TEST_TMPDIR="$(mktemp -d)"
   export HOMESTACK_DIR="$TEST_TMPDIR"
@@ -36,6 +34,7 @@ EOF
   cp -r "${PROJECT_DIR}/bin" "${HOMESTACK_DIR}/"
   cp -r "${PROJECT_DIR}/lib" "${HOMESTACK_DIR}/"
   chmod +x "${HOMESTACK_DIR}/bin/homestack"
+  export HOMESTACK_BIN="${HOMESTACK_DIR}/bin/homestack"
 
   source "${PROJECT_DIR}/lib/yaml.sh"
   source "${PROJECT_DIR}/lib/core.sh"
@@ -62,14 +61,16 @@ teardown_file() {
   assert_failure
 }
 
-@test "errors: stop with no app name fails" {
+@test "errors: stop with no app name shows warning" {
   run "${HOMESTACK_BIN}" stop
-  assert_failure
+  # stop all with no apps installed is not an error
+  assert_output --partial "No apps installed"
 }
 
-@test "errors: start with no app name fails" {
+@test "errors: start with no app name shows warning" {
   run "${HOMESTACK_BIN}" start
-  assert_failure
+  # start all with no apps installed is not an error
+  assert_output --partial "No apps installed"
 }
 
 # --- Nonexistent app ---
@@ -79,9 +80,10 @@ teardown_file() {
   assert_failure
 }
 
-@test "errors: status of nonexistent app fails" {
+@test "errors: status of nonexistent app shows no apps" {
   run "${HOMESTACK_BIN}" status "zzz_no_such_app"
-  assert_failure
+  # status doesn't fail hard, it just shows no apps
+  assert_output --partial "No apps installed"
 }
 
 # --- Path traversal ---
@@ -120,8 +122,8 @@ teardown_file() {
 
 # --- Unknown command ---
 
-@test "errors: unknown command shows help" {
+@test "errors: unknown command shows help and fails" {
   run "${HOMESTACK_BIN}" foobar
-  assert_success
+  assert_failure
   assert_output --partial "Usage"
 }
