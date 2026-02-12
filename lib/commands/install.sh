@@ -30,6 +30,9 @@ cmd_run() {
     exit 1
   fi
 
+  # Normalize app_name to the canonical catalog directory name
+  app_name=$(basename "$source_dir")
+
   local app_yaml="${source_dir}/app.yaml"
   local display_name
   display_name=$(yaml_get "$app_yaml" "display_name")
