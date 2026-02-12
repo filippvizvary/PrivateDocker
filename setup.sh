@@ -185,8 +185,17 @@ if [[ "$REAL_USER" != "root" ]]; then
   else
     usermod -aG "$HOMESTACK_GROUP" "$REAL_USER"
     success "Added '${REAL_USER}' to ${HOMESTACK_GROUP} group"
-    warn "Log out and back in for group membership to take effect"
   fi
+
+  # Add calling user to docker group so they can manage containers via CLI
+  if groups "$REAL_USER" | grep -q docker; then
+    success "'${REAL_USER}' is already in docker group"
+  else
+    usermod -aG docker "$REAL_USER"
+    success "Added '${REAL_USER}' to docker group"
+  fi
+
+  warn "Log out and back in for group membership to take effect"
 fi
 
 HOMESTACK_UID=$(id -u "$HOMESTACK_USER")
