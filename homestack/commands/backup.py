@@ -108,9 +108,25 @@ def _backup_app(app_name: str, timestamp: str) -> None:
 
     if has_data:
         core.step(f"Backing up {display_name} data")
-        with tarfile.open(data_archive, "w:gz") as tar:
+        try:
+            with tarfile.open(data_archive, "w:gz") as tar:
+                for d in valid_dirs:
+                    tar.add(core.APPDATA_DIR / d, arcname=d)
+        except PermissionError:
+            # Container-created files may be unreadable; use docker to archive
+            import subprocess
+            mounts = []
+            arcname_args = []
             for d in valid_dirs:
-                tar.add(core.APPDATA_DIR / d, arcname=d)
+                mounts += ["-v", f"{core.APPDATA_DIR / d}:/backup/{d}:ro"]
+            subprocess.run(
+                ["docker", "run", "--rm"]
+                + mounts
+                + ["-v", f"{dest}:/out"]
+                + ["alpine", "tar", "-czf", f"/out/{data_archive.name}"]
+                + ["-C", "/backup"] + valid_dirs,
+                check=True, capture_output=True,
+            )
         data_size = data_archive.stat().st_size
         db.db_record_backup(app_name, str(data_archive), data_size, "data")
         core.success(f"{display_name} data → {data_archive.name}")
