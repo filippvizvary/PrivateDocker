@@ -15,7 +15,7 @@ yaml_get_array() {
   local file="$1" key="$2"
   local line
   line=$(yaml_get "$file" "$key")
-  echo "$line" | tr -d '[]' | tr ',' '\n' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | grep -v '^$'
+  echo "$line" | tr -d '[]' | tr ',' '\n' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | { grep -v '^$' || true; }
 }
 
 # Parse the secrets block from app.yaml
