@@ -181,13 +181,21 @@ def compose_cmd(app_dir: str | Path, *args: str, capture: bool = False,
     stderr_dest = subprocess.DEVNULL if quiet_err else (subprocess.PIPE if capture else None)
     stdout_dest = subprocess.PIPE if capture else None
 
-    return subprocess.run(
+    result = subprocess.run(
         cmd,
         stdout=stdout_dest,
         stderr=stderr_dest,
         text=True,
-        check=check,
+        check=False,
     )
+
+    if check and result.returncode != 0:
+        stderr_msg = (result.stderr or "").strip() if result.stderr else ""
+        if stderr_msg:
+            error(f"Docker Compose error: {stderr_msg}")
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import subprocess
 import tarfile
 from datetime import datetime
 from pathlib import Path
@@ -114,7 +115,6 @@ def _backup_app(app_name: str, timestamp: str) -> None:
                     tar.add(core.APPDATA_DIR / d, arcname=d)
         except PermissionError:
             # Container-created files may be unreadable; use docker to archive
-            import subprocess
             mounts = []
             arcname_args = []
             for d in valid_dirs:

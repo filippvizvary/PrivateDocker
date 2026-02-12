@@ -38,6 +38,9 @@ from homestack.commands.status import cmd_status       # noqa: E402
 from homestack.commands.list import cmd_list           # noqa: E402
 from homestack.commands.search import cmd_search       # noqa: E402
 from homestack.commands.catalog import cmd_catalog     # noqa: E402
+from homestack.commands.logs import cmd_logs           # noqa: E402
+from homestack.commands.exec import cmd_exec           # noqa: E402
+from homestack.commands.doctor import cmd_doctor       # noqa: E402
 
 cli.add_command(cmd_install)
 cli.add_command(cmd_update)
@@ -51,6 +54,9 @@ cli.add_command(cmd_status)
 cli.add_command(cmd_list)
 cli.add_command(cmd_search)
 cli.add_command(cmd_catalog)
+cli.add_command(cmd_logs)
+cli.add_command(cmd_exec)
+cli.add_command(cmd_doctor)
 
 
 # ── Log command (inline — too small for its own file) ──────────────────────

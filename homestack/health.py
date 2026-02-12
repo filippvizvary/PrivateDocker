@@ -85,6 +85,13 @@ def _wait_for_healthy(install_dir: Path, timeout: int) -> None:
     core.warn("Timeout waiting for containers — proceeding with checks anyway")
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Don't follow redirects — let us check the actual status code."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(newurl, code, msg, headers, fp)
+
+
 def _run_http_check(app_name: str, hc: HealthCheck, retries: int = 5,
                     retry_delay: int = 3) -> bool:
     """Run a single HTTP health check with retries. Returns True on pass."""
@@ -95,13 +102,20 @@ def _run_http_check(app_name: str, hc: HealthCheck, retries: int = 5,
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
+    # Handle redirects manually to check status codes accurately
+    import urllib.request
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPSHandler(context=ctx),
+        _NoRedirectHandler(),
+    )
+
     last_err: str = ""
     for attempt in range(1, retries + 1):
         try:
             req = urllib.request.Request(hc.url, method=hc.method)
-            with urllib.request.urlopen(req, timeout=hc.timeout, context=ctx) as resp:
-                status = resp.getcode()
-                body = resp.read().decode("utf-8", errors="replace")
+            resp = opener.open(req, timeout=hc.timeout)
+            status = resp.getcode()
+            body = resp.read().decode("utf-8", errors="replace")
 
             if status != hc.expected_status:
                 last_err = f"returned {status}, expected {hc.expected_status}"

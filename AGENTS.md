@@ -37,7 +37,10 @@ User → homestack CLI (Click entrypoint)
               ├── status.py
               ├── list.py
               ├── search.py
-              └── catalog.py
+              ├── catalog.py
+              ├── logs.py
+              ├── exec.py
+              └── doctor.py
 ```
 
 ### Data Flow
@@ -97,7 +100,10 @@ homestack/
 │       ├── status.py
 │       ├── list.py
 │       ├── search.py
-│       └── catalog.py
+│       ├── catalog.py
+│       ├── logs.py
+│       ├── exec.py
+│       └── doctor.py
 ├── config/
 │   └── homestack.env       # Global config (paths, timezone, UID/GID)
 ├── setup.sh                # Interactive installer (Docker, deps, venv, config)
@@ -147,7 +153,7 @@ Click CLI entry point. Defines the main command group and registers all subcomma
 | `cli()` | `@click.group` — main entry point; calls `db_init()` on every invocation |
 | `cmd_log(limit)` | `@cli.command("log")` — displays audit log entries with color coding |
 
-Registers 12 subcommands via `cli.add_command()`.
+Registers 15 subcommands via `cli.add_command()`.
 
 **Command dispatch table:**
 
@@ -165,6 +171,9 @@ Registers 12 subcommands via `cli.add_command()`.
 | `list` | `commands/list.py` | No |
 | `search` | `commands/search.py` | No |
 | `catalog` | `commands/catalog.py` | No |
+| `logs` | `commands/logs.py` | No |
+| `exec` | `commands/exec.py` | No |
+| `doctor` | `commands/doctor.py` | No |
 | `log` | inline in `cli.py` | No |
 
 ### homestack/core.py (~196 lines)
@@ -391,6 +400,23 @@ Every command file exports a Click command object.
 
 #### start.py / stop.py / restart.py
 - Priority-ordered start/stop/restart for one or all apps
+
+#### logs.py (~40 lines)
+- Takes app name argument + `-f/--follow` flag + `-n/--tail` (default 100)
+- Streams Docker Compose logs via `compose_cmd`
+- Handles `KeyboardInterrupt` for `--follow` mode
+
+#### exec.py (~50 lines)
+- Runs commands inside app containers
+- Auto-detects first service from compose.yaml if `-s/--service` not specified
+- Uses `context_settings={"ignore_unknown_options": True}` for pass-through args
+- Passes through container exit code via `sys.exit(result.returncode)`
+
+#### doctor.py (~90 lines)
+- System health check — no lock required
+- 10 checks: Docker installed, Docker daemon running, Docker Compose v2, git, HomeStack dir, config file, database accessible, database schema, app catalog cached, disk space
+- Lists all installed apps at the end
+- Warns if available disk space < 1 GB
 
 #### status.py / list.py / search.py / catalog.py
 - Read-only commands, no lock required
