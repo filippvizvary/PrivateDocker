@@ -85,48 +85,57 @@ def _wait_for_healthy(install_dir: Path, timeout: int) -> None:
     core.warn("Timeout waiting for containers — proceeding with checks anyway")
 
 
-def _run_http_check(app_name: str, hc: HealthCheck) -> bool:
-    """Run a single HTTP health check. Returns True on pass."""
+def _run_http_check(app_name: str, hc: HealthCheck, retries: int = 5,
+                    retry_delay: int = 3) -> bool:
+    """Run a single HTTP health check with retries. Returns True on pass."""
     core.step(f"Checking {hc.url}")
-    try:
-        req = urllib.request.Request(hc.url, method=hc.method)
-        # Allow self-signed certs for local services
-        import ssl
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
 
-        with urllib.request.urlopen(req, timeout=hc.timeout, context=ctx) as resp:
-            status = resp.getcode()
-            body = resp.read().decode("utf-8", errors="replace")
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
 
-        if status != hc.expected_status:
-            core.error(
-                f"Health check failed: {hc.url} returned {status}, "
-                f"expected {hc.expected_status}"
-            )
-            return False
+    last_err: str = ""
+    for attempt in range(1, retries + 1):
+        try:
+            req = urllib.request.Request(hc.url, method=hc.method)
+            with urllib.request.urlopen(req, timeout=hc.timeout, context=ctx) as resp:
+                status = resp.getcode()
+                body = resp.read().decode("utf-8", errors="replace")
 
-        if hc.body_contains and hc.body_contains not in body:
-            core.error(
-                f"Health check failed: {hc.url} response body does not contain "
-                f"'{hc.body_contains}'"
-            )
-            return False
+            if status != hc.expected_status:
+                last_err = f"returned {status}, expected {hc.expected_status}"
+                if attempt < retries:
+                    time.sleep(retry_delay)
+                    continue
+                core.error(f"Health check failed: {hc.url} {last_err}")
+                return False
 
-        core.success(f"{hc.url} → {status} OK")
-        return True
+            if hc.body_contains and hc.body_contains not in body:
+                last_err = f"body does not contain '{hc.body_contains}'"
+                if attempt < retries:
+                    time.sleep(retry_delay)
+                    continue
+                core.error(f"Health check failed: {hc.url} {last_err}")
+                return False
 
-    except urllib.error.HTTPError as e:
-        if e.code == hc.expected_status:
-            core.success(f"{hc.url} → {e.code} OK")
+            core.success(f"{hc.url} → {status} OK")
             return True
-        core.error(f"Health check failed: {hc.url} returned {e.code}")
-        return False
 
-    except Exception as e:
-        core.error(f"Health check failed: {hc.url} — {e}")
-        return False
+        except urllib.error.HTTPError as e:
+            if e.code == hc.expected_status:
+                core.success(f"{hc.url} → {e.code} OK")
+                return True
+            last_err = f"returned {e.code}"
+
+        except Exception as e:
+            last_err = str(e)
+
+        if attempt < retries:
+            time.sleep(retry_delay)
+
+    core.error(f"Health check failed: {hc.url} — {last_err}")
+    return False
 
 
 def _run_exec_check(app_name: str, install_dir: Path, ec: ExecCheck) -> bool:
