@@ -69,7 +69,20 @@ def cmd_remove(app_name: str, yes: bool) -> None:
                         continue
                     target = core.APPDATA_DIR / d
                     if target.is_dir():
-                        shutil.rmtree(target)
+                        try:
+                            shutil.rmtree(target)
+                        except PermissionError:
+                            # Container-created files may be owned by another user;
+                            # fall back to removing via a privileged container.
+                            import subprocess
+                            subprocess.run(
+                                ["docker", "run", "--rm",
+                                 "-v", f"{target}:/data",
+                                 "alpine", "rm", "-rf", "/data"],
+                                capture_output=True,
+                            )
+                            # Remove the now-empty host directory
+                            shutil.rmtree(target, ignore_errors=True)
                 core.success("AppData deleted")
             else:
                 core.success(f"AppData preserved in {core.APPDATA_DIR}/")
