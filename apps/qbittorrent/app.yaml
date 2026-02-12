@@ -1,0 +1,14 @@
+name: qbittorrent
+display_name: qBittorrent
+description: BitTorrent client with web UI
+version: latest
+category: servarr
+port: 8080
+url: https://www.qbittorrent.org
+priority: 65
+
+networks: [media-net]
+appdata_dirs: [qbittorrent]
+media_dirs: [Downloads]
+
+secrets:

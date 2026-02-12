@@ -1,0 +1,30 @@
+name: n8n
+
+services:
+  n8n:
+    image: ${N8N_SERVER}
+    container_name: n8n
+    user: ${DOCKER_USER}
+    restart: unless-stopped
+    ports:
+      - 5678:5678
+    environment:
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_HOST=${N8N_SUBDOMAIN}.${N8N_DOMAIN}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_RUNNERS_ENABLED=true
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://${N8N_SUBDOMAIN}.${N8N_DOMAIN}/
+      - GENERIC_TIMEZONE=${TZ}
+      - TZ=${TZ}
+      - N8N_SECURE_COOKIE=false
+    volumes:
+      - ${APPDATA}/n8n/data:/home/node/.n8n
+      - ${APPDATA}/n8n/files:/files
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

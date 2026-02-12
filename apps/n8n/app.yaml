@@ -1,0 +1,17 @@
+name: n8n
+display_name: n8n
+description: Workflow automation tool
+version: 2.1.4
+category: automation
+port: 5678
+url: https://n8n.io
+priority: 60
+
+networks: []
+appdata_dirs: [n8n]
+media_dirs: []
+
+secrets:
+  - key: SSL_EMAIL
+    prompt: "Email for TLS/SSL certificates"
+    default: you@example.com

@@ -1,1 +1,33 @@
-/AppData
+# ============================================================
+# HomeStack .gitignore
+# ============================================================
+
+# Runtime data (Docker volumes — large, user-specific)
+/AppData/
+/Backups/
+/Media/
+
+# Per-app secrets (generated at install time)
+installed/*/secrets.env
+
+# Docker runtime
+docker-compose.override.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Old structure (safe to remove)
+/Projects/
+/Scripts/
+/script.sh

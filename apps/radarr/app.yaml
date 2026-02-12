@@ -1,0 +1,14 @@
+name: radarr
+display_name: Radarr
+description: Movie collection manager for torrent users
+version: latest
+category: servarr
+port: 7878
+url: https://radarr.video
+priority: 65
+
+networks: [media-net]
+appdata_dirs: [radarr]
+media_dirs: [Movies, Downloads]
+
+secrets:

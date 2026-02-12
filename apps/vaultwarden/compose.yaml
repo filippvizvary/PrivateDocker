@@ -1,0 +1,20 @@
+name: vaultwarden
+
+services:
+  vaultwarden:
+    image: ${VAULTWARDEN_SERVER}
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${VAULTWARDEN_DOMAIN}
+      - SIGNUPS_ALLOWED=false
+    volumes:
+      - ${APPDATA}/vaultwarden:/data
+    ports:
+      - 8000:80
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

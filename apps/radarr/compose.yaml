@@ -1,0 +1,29 @@
+name: radarr
+
+services:
+  radarr:
+    image: ${RADARR_SERVER}
+    container_name: radarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${APPDATA}/radarr:/config
+      - ${MEDIA}/Movies:/movies
+      - ${MEDIA}/Downloads:/downloads
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7878/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - media-net
+
+networks:
+  media-net:
+    external: true

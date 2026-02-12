@@ -1,0 +1,17 @@
+name: uptimekuma
+
+services:
+  uptime-kuma:
+    container_name: uptimekuma
+    image: ${UPTIMEKUMA_SERVER}
+    ports:
+      - 3001:3001
+    volumes:
+      - ${APPDATA}/uptimekuma:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

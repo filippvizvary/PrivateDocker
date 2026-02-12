@@ -1,0 +1,14 @@
+name: prowlarr
+display_name: Prowlarr
+description: Indexer manager for the Servarr stack
+version: latest
+category: servarr
+port: 9696
+url: https://prowlarr.com
+priority: 65
+
+networks: [media-net]
+appdata_dirs: [prowlarr]
+media_dirs: []
+
+secrets:

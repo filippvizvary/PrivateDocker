@@ -1,0 +1,14 @@
+name: jellyseerr
+display_name: Jellyseerr
+description: Media request management for Jellyfin
+version: latest
+category: servarr
+port: 5055
+url: https://github.com/Fallenbagel/jellyseerr
+priority: 70
+
+networks: [media-net]
+appdata_dirs: [jellyseerr]
+media_dirs: []
+
+secrets:

@@ -1,0 +1,17 @@
+name: vaultwarden
+display_name: Vaultwarden
+description: Lightweight Bitwarden-compatible password manager
+version: latest
+category: security
+port: 8000
+url: https://github.com/dani-garcia/vaultwarden
+priority: 80
+
+networks: []
+appdata_dirs: [vaultwarden]
+media_dirs: []
+
+secrets:
+  - key: VAULTWARDEN_DOMAIN
+    prompt: "Public domain (e.g. https://warden.example.com)"
+    default: https://warden.example.com

@@ -1,0 +1,23 @@
+name: jellyfin
+
+services:
+  jellyfin:
+    image: ${JELLYFIN_SERVER}
+    container_name: jellyfin
+    user: ${DOCKER_USER}
+    ports:
+      - 8096:8096/tcp
+      - 7359:7359/udp
+    volumes:
+      - ${APPDATA}/jellyfin/config:/config
+      - ${APPDATA}/jellyfin/cache:/cache
+      - type: bind
+        source: ${MEDIA}
+        target: /Media
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

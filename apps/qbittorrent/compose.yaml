@@ -1,0 +1,32 @@
+name: qbittorrent
+
+services:
+  qbittorrent:
+    image: ${QBITTORRENT_SERVER}
+    container_name: qbittorrent
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=6881
+    volumes:
+      - ${APPDATA}/qbittorrent:/config
+      - ${MEDIA}/Downloads:/downloads
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - media-net
+
+networks:
+  media-net:
+    external: true

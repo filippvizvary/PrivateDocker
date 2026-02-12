@@ -1,0 +1,14 @@
+name: jellyfin
+display_name: Jellyfin
+description: Free software media system for streaming
+version: 10.11.5
+category: media
+port: 8096
+url: https://jellyfin.org
+priority: 50
+
+networks: []
+appdata_dirs: [jellyfin]
+media_dirs: []
+
+secrets:

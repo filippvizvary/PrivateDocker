@@ -1,0 +1,24 @@
+name: immich
+display_name: Immich
+description: Self-hosted photo and video management
+version: 2.4.1
+category: media
+port: 2283
+url: https://immich.app
+priority: 40
+
+networks: []
+appdata_dirs: [immich]
+media_dirs: []
+
+secrets:
+  - key: DB_USERNAME
+    prompt: "Database username"
+    default: immich
+  - key: DB_PASSWORD
+    prompt: "Database password"
+    generate: true
+    length: 32
+  - key: DB_DATABASE_NAME
+    prompt: "Database name"
+    default: immich

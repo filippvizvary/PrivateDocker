@@ -1,0 +1,69 @@
+name: immich
+
+services:
+  immich-server:
+    container_name: immich_server
+    image: ${IMMICH_SERVER}
+    user: ${DOCKER_USER}
+    volumes:
+      - ${APPDATA}/immich/library:/data
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - secrets.env
+    environment:
+      TZ: ${TZ}
+    ports:
+      - "2283:2283"
+    depends_on:
+      redis:
+        condition: service_healthy
+      database:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      disable: false
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: ${IMMICH_ML}
+    user: ${DOCKER_USER}
+    volumes:
+      - ${APPDATA}/immich/ml:/cache
+    env_file:
+      - secrets.env
+    environment:
+      TZ: ${TZ}
+    restart: always
+    healthcheck:
+      disable: false
+
+  redis:
+    container_name: immich_redis
+    image: ${IMMICH_REDIS}
+    user: ${DOCKER_USER}
+    volumes:
+      - ${APPDATA}/immich/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+    restart: always
+
+  database:
+    container_name: immich_postgres
+    image: ${IMMICH_POSTGRES}
+    user: ${DOCKER_USER}
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/immich/postgres:/var/lib/postgresql/data
+    shm_size: 128mb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${DB_DATABASE_NAME} -U ${DB_USERNAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

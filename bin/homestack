@@ -1,0 +1,36 @@
+#!/bin/bash
+# HomeStack — Self-hosted Docker management CLI
+set -euo pipefail
+
+# Resolve HomeStack root directory from this script's location
+HOMESTACK_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+export HOMESTACK_DIR
+
+# Load libraries
+source "${HOMESTACK_DIR}/lib/yaml.sh"
+source "${HOMESTACK_DIR}/lib/core.sh"
+source "${HOMESTACK_DIR}/lib/secrets.sh"
+source "${HOMESTACK_DIR}/lib/registry.sh"
+
+# Parse command
+COMMAND="${1:-help}"
+shift 2>/dev/null || true
+
+case "$COMMAND" in
+  install|remove|start|stop|restart|status|update|backup|list|search)
+    source "${HOMESTACK_DIR}/lib/commands/${COMMAND}.sh"
+    cmd_run "$@"
+    ;;
+  help|--help|-h)
+    print_help
+    ;;
+  version|--version|-v)
+    echo "HomeStack v0.1.0"
+    ;;
+  *)
+    error "Unknown command: ${COMMAND}"
+    echo ""
+    print_help
+    exit 1
+    ;;
+esac

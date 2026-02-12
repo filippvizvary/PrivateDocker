@@ -1,0 +1,28 @@
+name: nextcloud
+display_name: Nextcloud
+description: Self-hosted productivity and file sync platform
+version: latest
+category: cloud
+port: 4432
+url: https://nextcloud.com
+priority: 30
+
+networks: []
+appdata_dirs: [nextcloud]
+media_dirs: []
+
+secrets:
+  - key: MARIADB_ROOT_PASSWORD
+    prompt: "MariaDB root password"
+    generate: true
+    length: 32
+  - key: MARIADB_DATABASE
+    prompt: "MariaDB database name"
+    default: nextcloud
+  - key: MARIADB_USER
+    prompt: "MariaDB username"
+    default: nextcloud
+  - key: MARIADB_PASSWORD
+    prompt: "MariaDB user password"
+    generate: true
+    length: 24
