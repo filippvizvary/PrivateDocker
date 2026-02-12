@@ -5,6 +5,9 @@
 # ============================================================
 set -euo pipefail
 
+# Ensure sbin paths are available (minimal Debian installs may not include them)
+export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
+
 # --- Colors ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
