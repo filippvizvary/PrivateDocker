@@ -1,0 +1,6 @@
+startup_time: 15
+health_checks:
+  - url: "http://localhost:18080/"
+    method: GET
+    expected_status: 200
+    timeout: 5

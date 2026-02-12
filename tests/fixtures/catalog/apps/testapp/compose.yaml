@@ -1,0 +1,17 @@
+name: testapp
+
+services:
+  testapp:
+    image: ${TESTAPP_SERVER}
+    container_name: testapp
+    ports:
+      - 18080:80
+    volumes:
+      - ${APPDATA}/testapp:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

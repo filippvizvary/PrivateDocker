@@ -1,0 +1,26 @@
+# Test fixture YAML for yaml.sh parser tests
+name: testapp
+display_name: Test App
+description: A test application for unit tests
+version: 1.0.0
+category: other
+port: 18080
+url: https://example.com
+priority: 50
+backup_strategy: stop
+networks: [test-net, proxy]
+appdata_dirs: [testapp, testapp-db]
+media_dirs: [Movies, Downloads]
+
+secrets:
+  - key: DB_PASSWORD
+    prompt: "Database password"
+    generate: true
+    length: 24
+  - key: DB_USERNAME
+    prompt: "Database username"
+    default: testuser
+  - key: API_KEY
+    prompt: "External API key"
+    generate: true
+    length: 64

@@ -1,0 +1,11 @@
+name: testapp-nosecrets
+display_name: Test App No Secrets
+description: A minimal test app without secrets
+version: 1.0.0
+category: other
+port: 18081
+priority: 60
+backup_strategy: live
+networks: []
+appdata_dirs: [testapp-nosecrets]
+media_dirs: []

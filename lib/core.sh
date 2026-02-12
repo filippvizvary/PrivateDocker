@@ -144,7 +144,3 @@ print_help() {
   echo "  homestack restore jellyfin"
   echo ""
 }
-  echo "  homestack stop jellyfin"
-  echo "  homestack status"
-  echo "  homestack search media"
-}

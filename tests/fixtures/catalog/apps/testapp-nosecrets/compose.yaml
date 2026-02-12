@@ -1,0 +1,17 @@
+name: testapp-nosecrets
+
+services:
+  testapp-nosecrets:
+    image: ${TESTAPPNOSECRETS_SERVER}
+    container_name: testapp-nosecrets
+    ports:
+      - 18081:80
+    volumes:
+      - ${APPDATA}/testapp-nosecrets:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

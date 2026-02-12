@@ -22,6 +22,9 @@ installed/*/secrets.env
 # Docker runtime
 docker-compose.override.yml
 
+# BATS test framework (auto-installed by run_tests.sh)
+tests/.bats/
+
 # OS files
 .DS_Store
 Thumbs.db

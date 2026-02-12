@@ -1,0 +1,17 @@
+name: testapp
+display_name: Test App
+description: A test application for integration tests
+version: 1.0.0
+category: other
+port: 18080
+priority: 50
+backup_strategy: live
+networks: []
+appdata_dirs: [testapp]
+media_dirs: []
+
+secrets:
+  - key: TEST_SECRET
+    prompt: "Test secret"
+    generate: true
+    length: 16

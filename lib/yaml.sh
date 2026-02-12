@@ -62,3 +62,84 @@ yaml_parse_secrets() {
   # Output last secret if we hit EOF while still in secrets block
   [[ $in_secrets -eq 1 && -n "$key" ]] && echo "${key}|${prompt}|${default_val}|${generate}|${length}"
 }
+
+# Parse the health_checks block from test.yaml
+# Returns lines in format: url|method|expected_status|body_contains|timeout
+# Usage: yaml_parse_health_checks <file>
+yaml_parse_health_checks() {
+  local file="$1"
+  local in_block=0
+  local url="" method="GET" expected_status="200" body_contains="" timeout="10"
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^health_checks:[[:space:]]*$ ]]; then
+      in_block=1
+      continue
+    fi
+
+    # Exit block on non-indented, non-blank line
+    if [[ $in_block -eq 1 ]] && [[ -n "$line" ]] && [[ ! "$line" =~ ^[[:space:]] ]]; then
+      [[ -n "$url" ]] && echo "${url}|${method}|${expected_status}|${body_contains}|${timeout}"
+      break
+    fi
+
+    if [[ $in_block -eq 1 ]]; then
+      if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*url:[[:space:]]*(.*) ]]; then
+        [[ -n "$url" ]] && echo "${url}|${method}|${expected_status}|${body_contains}|${timeout}"
+        url="${BASH_REMATCH[1]}"
+        method="GET" expected_status="200" body_contains="" timeout="10"
+      elif [[ "$line" =~ ^[[:space:]]*method:[[:space:]]*(.*) ]]; then
+        method="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ ^[[:space:]]*expected_status:[[:space:]]*(.*) ]]; then
+        expected_status="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ ^[[:space:]]*body_contains:[[:space:]]*\"(.*)\" ]]; then
+        body_contains="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ ^[[:space:]]*body_contains:[[:space:]]*(.*) ]]; then
+        body_contains="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ ^[[:space:]]*timeout:[[:space:]]*(.*) ]]; then
+        timeout="${BASH_REMATCH[1]}"
+      fi
+    fi
+  done < "$file"
+
+  [[ $in_block -eq 1 && -n "$url" ]] && echo "${url}|${method}|${expected_status}|${body_contains}|${timeout}"
+}
+
+# Parse the exec_checks block from test.yaml
+# Returns lines in format: container|command|expected_output
+# Usage: yaml_parse_exec_checks <file>
+yaml_parse_exec_checks() {
+  local file="$1"
+  local in_block=0
+  local container="" command="" expected_output=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^exec_checks:[[:space:]]*$ ]]; then
+      in_block=1
+      continue
+    fi
+
+    if [[ $in_block -eq 1 ]] && [[ -n "$line" ]] && [[ ! "$line" =~ ^[[:space:]] ]]; then
+      [[ -n "$container" ]] && echo "${container}|${command}|${expected_output}"
+      break
+    fi
+
+    if [[ $in_block -eq 1 ]]; then
+      if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*container:[[:space:]]*(.*) ]]; then
+        [[ -n "$container" ]] && echo "${container}|${command}|${expected_output}"
+        container="${BASH_REMATCH[1]}"
+        command="" expected_output=""
+      elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*\"(.*)\" ]]; then
+        command="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*(.*) ]]; then
+        command="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ ^[[:space:]]*expected_output:[[:space:]]*\"(.*)\" ]]; then
+        expected_output="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ ^[[:space:]]*expected_output:[[:space:]]*(.*) ]]; then
+        expected_output="${BASH_REMATCH[1]}"
+      fi
+    fi
+  done < "$file"
+
+  [[ $in_block -eq 1 && -n "$container" ]] && echo "${container}|${command}|${expected_output}"
+}

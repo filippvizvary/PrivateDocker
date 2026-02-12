@@ -508,40 +508,92 @@ homestack restore jellyfin
 
 ## Testing
 
-No automated test suite exists. Manual testing workflow:
+Three-tier automated test suite using [BATS](https://github.com/bats-core/bats-core) (Bash Automated Testing System).
+
+### Test Structure
+
+```
+tests/
+├── run_tests.sh              # Main runner — installs BATS, dispatches suites
+├── test_helper.bash           # Shared setup/teardown (temp env, fixture loading)
+├── .bats/                     # Auto-installed BATS framework (gitignored)
+├── fixtures/
+│   ├── sample.yaml            # Full-featured YAML fixture (secrets, networks, media)
+│   ├── nosecrets.yaml         # Minimal YAML fixture
+│   └── catalog/apps/          # Fake catalog for integration tests
+│       ├── testapp/           # nginx:1.27-alpine with 1 secret, port 18080
+│       └── testapp-nosecrets/ # nginx:1.27-alpine, no secrets, port 18081
+├── unit/                      # No Docker required
+│   ├── test_yaml.bats         # 13 tests — yaml_get, yaml_get_array, yaml_parse_secrets
+│   ├── test_db.bats           # 18 tests — all db_ functions, schema, CRUD
+│   ├── test_core.bats         # 13 tests — validation, locking, paths, help
+│   ├── test_secrets.bats      # 13 tests — generation, file permissions, append
+│   └── test_registry.bats    # 10 tests — find, list, search
+├── integration/               # Docker required
+│   ├── test_lifecycle.bats    # Full install→status→stop→start→backup→update→remove
+│   ├── test_readonly.bats     # version, help, list, catalog, search, log
+│   └── test_install_errors.bats # Missing args, path traversal, duplicates
+└── apps/                      # Docker + real images
+    └── test_app_health.bats   # Installs real app, validates via test.yaml
+```
+
+### Running Tests
 
 ```bash
-# Full lifecycle test
-homestack install jellyfin
-homestack status jellyfin
-homestack backup jellyfin
-homestack update jellyfin
-homestack restore jellyfin
-homestack stop jellyfin
-homestack start jellyfin
-homestack restart jellyfin
-homestack remove jellyfin
+# Run all unit tests (no Docker needed)
+./tests/run_tests.sh unit
 
-# Read-only commands
-homestack list
-homestack catalog
-homestack search media
+# Run integration tests (requires Docker)
+./tests/run_tests.sh integration
 
-# Verify DB state
-sqlite3 homestack.db "SELECT * FROM apps;"
-sqlite3 homestack.db "SELECT * FROM audit_log ORDER BY id DESC LIMIT 10;"
-sqlite3 homestack.db "SELECT * FROM backups;"
+# Run health checks for a specific app (requires Docker + image pull)
+APP=jellyfin ./tests/run_tests.sh apps
+
+# Run everything
+./tests/run_tests.sh all
 ```
+
+### test.yaml Format (in homestack-apps)
+
+Each app in the catalog includes a `test.yaml` defining automated health checks:
+
+```yaml
+startup_time: 30                  # Seconds to wait for containers
+health_checks:
+  - url: "http://localhost:8096/health"
+    method: GET                   # Optional, default: GET
+    expected_status: 200          # Optional, default: 200
+    body_contains: "ok"           # Optional
+    timeout: 10                   # Optional, default: 10s
+exec_checks:                      # Optional — for database sidecars
+  - container: redis
+    command: "redis-cli ping"
+    expected_output: "PONG"
+```
+
+### YAML Parser Functions for Tests
+
+`lib/yaml.sh` provides two functions for parsing test.yaml:
+
+| Function | Returns |
+|----------|---------|
+| `yaml_parse_health_checks file` | Lines: `url\|method\|expected_status\|body_contains\|timeout` |
+| `yaml_parse_exec_checks file` | Lines: `container\|command\|expected_output` |
+
+### Writing New Tests
+
+- **Unit tests:** Source libs directly, create temp `HOMESTACK_DIR`, no Docker
+- **Integration tests:** Use `bin/homestack` binary, need Docker for lifecycle commands
+- **App health tests:** Set `APP=appname`, reads test.yaml from catalog or fixtures
 
 ## Known Limitations
 
-1. **No automated tests** — testing is manual only
-2. **YAML parser is fragile** — only handles the subset used in app.yaml; no nested objects, multi-line values, or anchors
-3. **Single-host only** — no clustering or multi-node support
-4. **No TLS/reverse proxy** — apps expose raw HTTP ports
-5. **No dependency resolution** — apps don't declare dependencies on other apps
-6. **SQLite concurrent access** — flock prevents concurrent CLI runs, but SQLite itself has limited concurrent write support
-7. **No update notifications** — user must run `homestack update` manually to check for new versions
+1. **YAML parser is fragile** — only handles the subset used in app.yaml/test.yaml; no nested objects, multi-line values, or anchors
+2. **Single-host only** — no clustering or multi-node support
+3. **No TLS/reverse proxy** — apps expose raw HTTP ports
+4. **No dependency resolution** — apps don't declare dependencies on other apps
+5. **SQLite concurrent access** — flock prevents concurrent CLI runs, but SQLite itself has limited concurrent write support
+6. **No update notifications** — user must run `homestack update` manually to check for new versions
 
 ## Common Development Tasks
 
