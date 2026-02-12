@@ -74,7 +74,6 @@ def cmd_remove(app_name: str, yes: bool) -> None:
                         except PermissionError:
                             # Container-created files may be owned by another user;
                             # fall back to removing via a privileged container.
-                            import subprocess
                             subprocess.run(
                                 ["docker", "run", "--rm",
                                  "-v", f"{target}:/data",
