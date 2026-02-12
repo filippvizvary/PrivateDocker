@@ -2,11 +2,11 @@
 # HomeStack — Secrets management
 # Generates and prompts for secrets at install time
 
-# Generate a random password of given length
+# Generate a random password of given length (alphanumeric only for env safety)
 generate_password() {
   local length="${1:-32}"
-  tr -dc 'A-Za-z0-9!@#%^*_-' < /dev/urandom | head -c "$length" 2>/dev/null || \
-  openssl rand -base64 "$length" | tr -dc 'A-Za-z0-9' | head -c "$length"
+  tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "$length" 2>/dev/null || \
+  openssl rand -base64 "$((length + 10))" | tr -dc 'A-Za-z0-9' | head -c "$length"
 }
 
 # Generate secrets.env for an app from its app.yaml
@@ -21,8 +21,8 @@ generate_secrets_file() {
   secrets_data=$(yaml_parse_secrets "$app_yaml")
 
   if [[ -z "$secrets_data" ]]; then
-    # No secrets needed — create empty file
     echo "# No secrets required for ${app_name}" > "$output"
+    chmod 600 "$output"
     return 0
   fi
 
@@ -46,14 +46,16 @@ generate_secrets_file() {
       echo -ne "  ${key}"
       [[ -n "$prompt" ]] && echo -ne " (${prompt})"
       echo -ne ": "
-      read -r value
+      read -rs value
+      echo ""
       while [[ -z "$value" ]]; do
         echo -ne "  ${RED}Required.${NC} ${key}: "
-        read -r value
+        read -rs value
+        echo ""
       done
     fi
 
-    entries+=("${key}=${value}")
+    entries+=("${key}=\"${value}\"")
   done <<< "$secrets_data"
 
   echo ""
@@ -68,5 +70,64 @@ generate_secrets_file() {
     done
   } > "$output"
 
+  chmod 600 "$output"
   success "Secrets written to $(basename "$output")"
+}
+
+# Append new secrets to an existing secrets.env (used during updates)
+# Only adds keys that don't already exist
+append_new_secrets() {
+  local app_yaml="$1"
+  local secrets_file="$2"
+  local app_name
+  app_name=$(yaml_get "$app_yaml" "name")
+
+  local secrets_data
+  secrets_data=$(yaml_parse_secrets "$app_yaml")
+  [[ -z "$secrets_data" ]] && return 0
+
+  local new_secrets=()
+
+  while IFS='|' read -r key prompt default_val generate length; do
+    # Check if key already exists in secrets file
+    if ! grep -q "^${key}=" "$secrets_file" 2>/dev/null; then
+      new_secrets+=("${key}|${prompt}|${default_val}|${generate}|${length}")
+    fi
+  done <<< "$secrets_data"
+
+  [[ ${#new_secrets[@]} -eq 0 ]] && return 0
+
+  echo -e "${YELLOW}New secrets required for ${app_name}:${NC}"
+  echo ""
+
+  for secret_line in "${new_secrets[@]}"; do
+    IFS='|' read -r key prompt default_val generate length <<< "$secret_line"
+    local value=""
+
+    if [[ "$generate" == "true" ]]; then
+      value=$(generate_password "$length")
+      echo -e "  ${GREEN}${key}${NC}: auto-generated (${length} chars)"
+    elif [[ -n "$default_val" ]]; then
+      echo -ne "  ${key}"
+      echo -ne " [${default_val}]: "
+      read -r user_input
+      value="${user_input:-$default_val}"
+    else
+      echo -ne "  ${key}"
+      [[ -n "$prompt" ]] && echo -ne " (${prompt})"
+      echo -ne ": "
+      read -rs value
+      echo ""
+      while [[ -z "$value" ]]; do
+        echo -ne "  ${RED}Required.${NC} ${key}: "
+        read -rs value
+        echo ""
+      done
+    fi
+
+    echo "${key}=\"${value}\"" >> "$secrets_file"
+  done
+
+  echo ""
+  success "New secrets appended to $(basename "$secrets_file")"
 }

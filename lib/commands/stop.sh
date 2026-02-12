@@ -5,7 +5,6 @@ cmd_run() {
   local target="${1:-}"
 
   if [[ -n "$target" ]]; then
-    # Stop single app
     if ! is_installed "$target"; then
       error "'${target}' is not installed."
       exit 1
@@ -16,8 +15,8 @@ cmd_run() {
     step "Stopping ${display_name}"
     compose_cmd "$install_dir" down
     success "${display_name} stopped"
+    db_log_action "stop" "$target" "Stopped"
   else
-    # Stop all installed apps in reverse priority order
     local apps
     apps=$(get_installed_apps)
     if [[ -z "$apps" ]]; then
@@ -25,7 +24,6 @@ cmd_run() {
       exit 0
     fi
 
-    # Reverse the list
     local reversed
     reversed=$(echo "$apps" | tac)
 
@@ -41,5 +39,6 @@ cmd_run() {
 
     echo ""
     success "All apps stopped"
+    db_log_action "stop" "" "Stopped all apps"
   fi
 }

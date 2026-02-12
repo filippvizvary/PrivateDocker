@@ -14,6 +14,8 @@ cmd_run() {
     exit 1
   fi
 
+  acquire_lock
+
   local install_dir="${INSTALLED_DIR}/${app_name}"
   local app_yaml="${install_dir}/app.yaml"
   local display_name
@@ -21,10 +23,27 @@ cmd_run() {
 
   echo -e "${BLUE}Removing ${display_name}...${NC}"
 
-  # Stop the app
+  # Stop containers
   step "Stopping containers"
-  compose_cmd "$install_dir" down 2>/dev/null || true
+  if ! compose_cmd "$install_dir" down 2>/dev/null; then
+    warn "Some containers may not have stopped cleanly"
+  fi
   success "Containers stopped"
+
+  # Clean up Docker networks specific to this app
+  local networks
+  networks=$(yaml_get_array "$app_yaml" "networks")
+  if [[ -n "$networks" ]]; then
+    while IFS= read -r network; do
+      # Only remove if no other containers use the network
+      local connected
+      connected=$(docker network inspect "$network" --format '{{len .Containers}}' 2>/dev/null || echo "0")
+      if [[ "$connected" == "0" ]]; then
+        docker network rm "$network" 2>/dev/null && \
+          success "Removed Docker network '${network}'" || true
+      fi
+    done <<< "$networks"
+  fi
 
   # Ask about AppData
   local appdata_dirs
@@ -35,6 +54,7 @@ cmd_run() {
     read -r delete_data
     if [[ "${delete_data,,}" == "y" ]]; then
       while IFS= read -r dir; do
+        validate_path_component "$dir" || continue
         rm -rf "${APPDATA_DIR:?}/${dir}"
       done <<< "$appdata_dirs"
       success "AppData deleted"
@@ -45,5 +65,11 @@ cmd_run() {
 
   # Remove installed files
   rm -rf "$install_dir"
+
+  # Remove from database
+  db_remove_app "$app_name"
+  db_log_action "remove" "$app_name" "Removed ${display_name}"
+
+  release_lock
   success "${display_name} removed"
 }

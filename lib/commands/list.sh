@@ -13,18 +13,19 @@ cmd_run() {
 
   echo -e "${BLUE}Installed Apps${NC}"
   echo ""
-  printf "  %-18s %-15s %-8s %s\n" "NAME" "CATEGORY" "PORT" "VERSION"
-  printf "  %-18s %-15s %-8s %s\n" "----" "--------" "----" "-------"
+  printf "  %-18s %-15s %-8s %-12s %s\n" "NAME" "CATEGORY" "PORT" "VERSION" "INSTALLED"
+  printf "  %-18s %-15s %-8s %-12s %s\n" "----" "--------" "----" "-------" "---------"
 
   while IFS= read -r app; do
     local install_dir="${INSTALLED_DIR}/${app}"
     local app_yaml="${install_dir}/app.yaml"
-    local display_name category port version
+    local display_name category port version installed_at
     display_name=$(yaml_get "$app_yaml" "display_name")
     category=$(yaml_get "$app_yaml" "category")
     port=$(yaml_get "$app_yaml" "port")
     version=$(yaml_get "$app_yaml" "version")
-    printf "  %-18s %-15s %-8s %s\n" "$display_name" "$category" "$port" "$version"
+    installed_at=$(db_get_install_date "$app" 2>/dev/null || echo "-")
+    printf "  %-18s %-15s %-8s %-12s %s\n" "$display_name" "$category" "$port" "$version" "$installed_at"
   done <<< "$apps"
 
   echo ""

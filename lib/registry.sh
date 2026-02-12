@@ -1,11 +1,57 @@
 #!/bin/bash
 # HomeStack — App registry / catalog
-# Discovers available apps from the local apps/ directory
-# Future: also fetch from remote homestack-apps repo
+# Fetches and discovers apps from the homestack-apps repository
+
+APPS_CACHE_DIR="${HOMESTACK_DIR}/.cache/homestack-apps"
+APPS_REPO_URL="${HOMESTACK_APPS_REPO:-https://github.com/filippvizvary/homestack-apps.git}"
+APPS_DIR="${APPS_CACHE_DIR}/apps"
+
+# Sync app catalog from remote repository
+registry_sync() {
+  if [[ -d "${APPS_CACHE_DIR}/.git" ]]; then
+    step "Updating app catalog"
+    if git -C "$APPS_CACHE_DIR" pull --quiet 2>/dev/null; then
+      success "App catalog updated"
+    else
+      warn "Failed to update catalog, using cached version"
+      return 1
+    fi
+  else
+    step "Downloading app catalog"
+    mkdir -p "$(dirname "$APPS_CACHE_DIR")"
+    if git clone --depth 1 "$APPS_REPO_URL" "$APPS_CACHE_DIR" 2>/dev/null; then
+      success "App catalog downloaded"
+    else
+      error "Failed to download app catalog from ${APPS_REPO_URL}"
+      return 1
+    fi
+  fi
+
+  # Update catalog versions in database
+  if command -v sqlite3 &>/dev/null && [[ -f "$DB_FILE" ]]; then
+    for dir in "${APPS_DIR}"/*/; do
+      [[ -f "${dir}app.yaml" ]] || continue
+      local name version
+      name=$(basename "$dir")
+      version=$(yaml_get "${dir}app.yaml" "version")
+      if db_is_installed "$name"; then
+        db_set_catalog_version "$name" "$version"
+      fi
+    done
+  fi
+}
+
+# Ensure catalog is available, sync if missing
+registry_ensure() {
+  if [[ ! -d "$APPS_DIR" ]]; then
+    registry_sync || return 1
+  fi
+}
 
 # List all available apps from the catalog
 # Returns: name|display_name|description|category|port
 registry_list() {
+  registry_ensure || return 1
   for dir in "${APPS_DIR}"/*/; do
     [[ -f "${dir}app.yaml" ]] || continue
     local name display category port description
@@ -22,6 +68,7 @@ registry_list() {
 # Returns the app directory path, or empty if not found
 registry_find() {
   local app_name="$1"
+  registry_ensure || return 1
   local app_dir="${APPS_DIR}/${app_name}"
   if [[ -d "$app_dir" && -f "${app_dir}/app.yaml" ]]; then
     echo "$app_dir"
@@ -29,9 +76,9 @@ registry_find() {
 }
 
 # Search apps by query (matches name, display_name, description, category)
-# Usage: registry_search <query>
 registry_search() {
   local query="$1"
+  registry_ensure || return 1
   local query_lower
   query_lower=$(echo "$query" | tr '[:upper:]' '[:lower:]')
 
@@ -52,15 +99,3 @@ registry_search() {
     fi
   done
 }
-
-# Sync app catalog from remote repository (future)
-# registry_sync() {
-#   local remote_repo="https://github.com/filippvizvary/homestack-apps.git"
-#   local cache_dir="${HOMESTACK_DIR}/.cache/app-store"
-#   if [[ -d "$cache_dir" ]]; then
-#     git -C "$cache_dir" pull --quiet
-#   else
-#     git clone --depth 1 "$remote_repo" "$cache_dir"
-#   fi
-#   # Merge remote apps into local apps/ dir
-# }

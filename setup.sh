@@ -25,6 +25,7 @@ fi
 
 INSTALL_DIR="${HOMESTACK_DIR:-/homestack}"
 REPO_URL="https://github.com/filippvizvary/homestack.git"
+APPS_REPO_URL="https://github.com/filippvizvary/homestack-apps.git"
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════╗${NC}"
@@ -33,7 +34,39 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 # ============================================================
-# 1. Install Docker (if not present)
+# 1. Check dependencies
+# ============================================================
+step "Checking dependencies..."
+
+# Check for sqlite3
+if command -v sqlite3 &>/dev/null; then
+  success "sqlite3 is available"
+else
+  step "Installing sqlite3..."
+  if command -v apt &>/dev/null; then
+    apt update -qq && apt install -y -qq sqlite3
+  elif command -v dnf &>/dev/null; then
+    dnf install -y -q sqlite
+  elif command -v pacman &>/dev/null; then
+    pacman -Sy --noconfirm sqlite
+  else
+    error "sqlite3 is required but could not be installed automatically."
+    echo "  Install it manually and re-run setup."
+    exit 1
+  fi
+  success "sqlite3 installed"
+fi
+
+# Check for git
+if command -v git &>/dev/null; then
+  success "git is available"
+else
+  error "git is required. Install it and re-run setup."
+  exit 1
+fi
+
+# ============================================================
+# 2. Install Docker (if not present)
 # ============================================================
 step "Checking Docker installation..."
 if command -v docker &>/dev/null; then
@@ -55,7 +88,7 @@ else
 fi
 
 # ============================================================
-# 2. Clone or update HomeStack
+# 3. Clone or update HomeStack
 # ============================================================
 step "Setting up HomeStack in ${INSTALL_DIR}..."
 if [[ -d "${INSTALL_DIR}/.git" ]]; then
@@ -78,17 +111,18 @@ fi
 cd "$INSTALL_DIR"
 
 # ============================================================
-# 3. Create data directories
+# 4. Create data directories
 # ============================================================
 step "Creating data directories..."
 mkdir -p "${INSTALL_DIR}/AppData"
 mkdir -p "${INSTALL_DIR}/Backups"
 mkdir -p "${INSTALL_DIR}/Media"
 mkdir -p "${INSTALL_DIR}/installed"
+mkdir -p "${INSTALL_DIR}/.cache"
 success "Data directories created"
 
 # ============================================================
-# 4. Configure homestack.env
+# 5. Configure homestack.env
 # ============================================================
 CONFIG_FILE="${INSTALL_DIR}/config/homestack.env"
 
@@ -125,6 +159,10 @@ if [[ "${configure:-false}" == "true" ]]; then
   read -rp "  Group ID (PGID) [${default_gid}]: " user_pgid
   user_pgid="${user_pgid:-$default_gid}"
 
+  # Apps repo URL
+  read -rp "  App catalog repo [${APPS_REPO_URL}]: " user_apps_repo
+  user_apps_repo="${user_apps_repo:-$APPS_REPO_URL}"
+
   mkdir -p "${INSTALL_DIR}/config"
 
   cat > "$CONFIG_FILE" <<EOF
@@ -148,13 +186,40 @@ TZ=${user_tz}
 PUID=${user_puid}
 PGID=${user_pgid}
 DOCKER_USER=${user_puid}:${user_pgid}
+
+# App catalog repository
+HOMESTACK_APPS_REPO=${user_apps_repo}
 EOF
 
   success "Configuration written to ${CONFIG_FILE}"
 fi
 
 # ============================================================
-# 5. Set file permissions
+# 6. Initialize database
+# ============================================================
+step "Initializing database..."
+export HOMESTACK_DIR="${INSTALL_DIR}"
+source "${INSTALL_DIR}/lib/yaml.sh"
+source "${INSTALL_DIR}/lib/core.sh"
+source "${INSTALL_DIR}/lib/db.sh"
+db_init
+success "Database initialized at ${INSTALL_DIR}/homestack.db"
+
+# ============================================================
+# 7. Sync app catalog
+# ============================================================
+step "Syncing app catalog..."
+source "${INSTALL_DIR}/lib/secrets.sh"
+source "${INSTALL_DIR}/lib/registry.sh"
+if [[ -f "$CONFIG_FILE" ]]; then
+  # Load HOMESTACK_APPS_REPO from config if set
+  HOMESTACK_APPS_REPO=$(grep '^HOMESTACK_APPS_REPO=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- || echo "")
+  [[ -n "$HOMESTACK_APPS_REPO" ]] && APPS_REPO_URL="$HOMESTACK_APPS_REPO"
+fi
+registry_sync || warn "Could not sync catalog. Run 'homestack catalog update' later."
+
+# ============================================================
+# 8. Set file permissions
 # ============================================================
 step "Setting permissions..."
 chmod +x "${INSTALL_DIR}/bin/homestack"
@@ -162,7 +227,7 @@ find "${INSTALL_DIR}/lib" -name "*.sh" -exec chmod +x {} \;
 success "Permissions set"
 
 # ============================================================
-# 6. Create CLI symlink
+# 9. Create CLI symlink
 # ============================================================
 step "Installing homestack CLI..."
 SYMLINK="/usr/local/bin/homestack"
@@ -173,7 +238,7 @@ ln -s "${INSTALL_DIR}/bin/homestack" "$SYMLINK"
 success "CLI available as 'homestack' (${SYMLINK})"
 
 # ============================================================
-# 7. Add current user to docker group (if not already)
+# 10. Add current user to docker group (if not already)
 # ============================================================
 REAL_USER="${SUDO_USER:-$USER}"
 if [[ "$REAL_USER" != "root" ]]; then
@@ -195,11 +260,13 @@ echo -e "${GREEN}║     HomeStack setup complete! 🏠     ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════╝${NC}"
 echo ""
 echo "  Get started:"
-echo "    homestack list              — Browse available apps"
-echo "    homestack install <app>     — Install an app"
-echo "    homestack status            — Check running apps"
+echo "    homestack catalog update      — Refresh app catalog"
+echo "    homestack search              — Browse available apps"
+echo "    homestack install <app>       — Install an app"
+echo "    homestack status              — Check running apps"
 echo ""
 echo "  Configuration: ${CONFIG_FILE}"
+echo "  Database:      ${INSTALL_DIR}/homestack.db"
 echo "  App data:      ${INSTALL_DIR}/AppData/"
 echo "  Backups:       ${INSTALL_DIR}/Backups/"
 echo "  Media:         ${INSTALL_DIR}/Media/"

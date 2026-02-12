@@ -7,8 +7,17 @@
 /Backups/
 /Media/
 
+# App catalog cache (fetched from homestack-apps repo)
+.cache/
+
+# SQLite database (generated at runtime)
+homestack.db
+
 # Per-app secrets (generated at install time)
 installed/*/secrets.env
+
+# Lock file
+.lock
 
 # Docker runtime
 docker-compose.override.yml
@@ -26,8 +35,6 @@ Thumbs.db
 
 # Logs
 *.log
-
-# Old structure (safe to remove)
 /Projects/
 /Scripts/
 /script.sh

@@ -13,6 +13,7 @@ cmd_run() {
 
   if [[ -z "$results" ]]; then
     echo "No apps found${query:+ matching '${query}'}."
+    echo "  Try 'homestack catalog update' to refresh the catalog."
     exit 0
   fi
 

@@ -8,6 +8,9 @@ A plug-and-play CLI for managing self-hosted Docker services.
 # Install HomeStack (as root)
 sudo ./setup.sh
 
+# Sync app catalog
+homestack catalog update
+
 # Browse available apps
 homestack search
 
@@ -28,12 +31,17 @@ homestack status
 | `homestack stop [app]` | Stop one or all installed apps |
 | `homestack restart [app]` | Restart one or all installed apps |
 | `homestack status` | Show status of all installed apps |
-| `homestack update <app>` | Update an app to the latest catalog version |
-| `homestack backup [app]` | Backup AppData for one or all apps |
+| `homestack update [app]` | Update an app to the latest catalog version |
+| `homestack backup [app]` | Backup AppData and config for one or all apps |
+| `homestack restore <app>` | Restore an app from a backup |
 | `homestack list` | List installed apps |
 | `homestack search [query]` | Search the app catalog |
+| `homestack catalog [update]` | Sync app catalog from remote repository |
+| `homestack log [N]` | Show last N audit log entries |
 
 ## Available Apps
+
+Apps are managed in a separate community repository: [homestack-apps](https://github.com/filippvizvary/homestack-apps)
 
 | App | Category | Port | Description |
 |-----|----------|------|-------------|
@@ -48,7 +56,7 @@ homestack status
 | uptimekuma | monitoring | 3001 | Self-hosted uptime monitoring |
 | vaultwarden | security | 8000 | Lightweight Bitwarden-compatible vault |
 
-## Directory Structure
+## Architecture
 
 ```
 /homestack/
@@ -57,13 +65,12 @@ homestack status
 │   ├── core.sh            # Shared functions & helpers
 │   ├── yaml.sh            # YAML parser for app.yaml
 │   ├── secrets.sh         # Secret generation & prompts
-│   ├── registry.sh        # App catalog discovery
+│   ├── registry.sh        # App catalog fetch & discovery
+│   ├── db.sh              # SQLite database layer
 │   └── commands/          # One file per CLI command
-├── apps/                  # App catalog (app packages)
-│   └── <app>/
-│       ├── app.yaml       # Manifest (metadata, secrets spec)
-│       ├── compose.yaml   # Docker Compose definition
-│       └── config.env     # Image tags & default config
+├── .cache/                # Cached app catalog (auto-fetched)
+│   └── homestack-apps/    # Cloned from homestack-apps repo
+│       └── apps/
 ├── installed/             # Live copies of installed apps
 │   └── <app>/
 │       ├── app.yaml
@@ -72,6 +79,7 @@ homestack status
 │       └── secrets.env    # Generated at install (gitignored)
 ├── config/
 │   └── homestack.env      # Global config (TZ, PUID, paths)
+├── homestack.db           # SQLite state database
 ├── AppData/               # Persistent data per app
 ├── Backups/               # Backup archives
 ├── Media/                 # Shared media library
@@ -79,48 +87,39 @@ homestack status
 └── README.md
 ```
 
-## App Package Format
+## How it works
 
-Each app is a self-contained package with three files:
+1. **Catalog** — App definitions are stored in the [homestack-apps](https://github.com/filippvizvary/homestack-apps) repository. Run `homestack catalog update` to fetch/refresh them into `.cache/`.
 
-**app.yaml** — Manifest defining metadata, requirements, and secrets:
+2. **Install** — `homestack install <app>` copies app files to `installed/<app>/`, generates secrets, creates networks/directories, and starts containers.
 
-```yaml
-name: myapp
-display_name: My App
-description: What it does
-version: 1.0.0
-category: media
-port: 8080
-priority: 50
-networks: [media-net]
-appdata_dirs: [myapp]
-media_dirs: [Downloads]
-secrets:
-  - key: DB_PASSWORD
-    prompt: "Database password"
-    generate: true
-    length: 32
-```
+3. **State** — A SQLite database (`homestack.db`) tracks installed versions, config overrides, backups, container health, and an audit log of all actions.
 
-**compose.yaml** — Standard Docker Compose using `${VAR}` substitution.
+4. **Update** — `homestack update` compares installed vs catalog versions, performs a smart config merge (preserving user edits), handles new secrets, and recreates containers.
 
-**config.env** — Image tags and non-secret app config.
+5. **Backup** — `homestack backup` stops containers for safe backup, archives both AppData and config files, and records backups in the database with rotation.
 
 ## Configuration
 
 | File | Purpose |
 |------|---------|
-| `config/homestack.env` | Global paths, timezone, PUID/PGID |
-| `apps/<app>/config.env` | Per-app image tags & defaults |
-| `installed/<app>/secrets.env` | Per-app secrets (auto-generated) |
+| `config/homestack.env` | Global paths, timezone, PUID/PGID, catalog repo URL |
+| `installed/<app>/config.env` | Per-app image tags & defaults |
+| `installed/<app>/secrets.env` | Per-app secrets (auto-generated, chmod 600) |
+| `homestack.db` | SQLite state database |
 
-## Contributing Apps
+## Dependencies
 
-1. Create a new directory under `apps/` with `app.yaml`, `compose.yaml`, and `config.env`
-2. Follow the app package format above
-3. Test with `homestack install <your-app>`
-4. Submit a PR
+- Docker with Compose plugin
+- `git` (for catalog sync)
+- `sqlite3` (for state management)
+- `bash` 4.0+
+
+## Contributing
+
+To contribute **apps**, see the [homestack-apps](https://github.com/filippvizvary/homestack-apps) repository.
+
+To contribute to the **CLI**, open issues or PRs in this repository.
 
 ## License
 
