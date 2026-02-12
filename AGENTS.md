@@ -4,37 +4,40 @@
 
 ## Project Overview
 
-**HomeStack** is a Bash CLI tool that manages self-hosted Docker Compose applications on a single Linux server. It provides install, update, backup, restore, and lifecycle management with SQLite-backed state tracking.
+**HomeStack** is a Python CLI tool that manages self-hosted Docker Compose applications on a single Linux server. It provides install, update, backup, restore, and lifecycle management with SQLite-backed state tracking.
 
-- **Language:** Bash (requires Bash 4+)
-- **Version:** 0.2.0
+- **Language:** Python 3.9+ (Click CLI framework)
+- **Version:** 0.3.0
 - **License:** MIT
 - **Owner:** filippvizvary (GitHub)
-- **Dependencies:** `sqlite3`, `git`, `curl`, `docker` (with Compose v2 plugin), `flock`, `tar`, `grep`, `sed`, `awk`
+- **Build system:** `setuptools` via `pyproject.toml`
+- **Dependencies:** `click>=8.0`, `pyyaml>=6.0`
+- **System dependencies:** `git`, `docker` (with Compose v2 plugin), `tar`
 - **Companion repo:** `homestack-apps` — community catalog of app definitions
 
 ## Architecture
 
 ```
-User → bin/homestack (CLI entrypoint)
-         ├── lib/core.sh      (shared utilities, compose_cmd, locking)
-         ├── lib/db.sh         (SQLite abstraction layer)
-         ├── lib/registry.sh   (catalog sync via git)
-         ├── lib/secrets.sh    (secret generation)
-         ├── lib/yaml.sh       (minimal YAML parser)
-         └── lib/commands/     (one file per CLI command)
-              ├── install.sh
-              ├── update.sh
-              ├── remove.sh
-              ├── backup.sh
-              ├── restore.sh
-              ├── start.sh
-              ├── stop.sh
-              ├── restart.sh
-              ├── status.sh
-              ├── list.sh
-              ├── search.sh
-              └── catalog.sh
+User → homestack CLI (Click entrypoint)
+         ├── homestack/core.py       (paths, compose_cmd, locking, helpers)
+         ├── homestack/db.py         (SQLite abstraction layer)
+         ├── homestack/registry.py   (catalog sync via git)
+         ├── homestack/secrets.py    (secret generation)
+         ├── homestack/yaml_parser.py (YAML parser with dataclasses)
+         ├── homestack/health.py     (post-install health checks)
+         └── homestack/commands/     (one file per CLI command)
+              ├── install.py
+              ├── update.py
+              ├── remove.py
+              ├── backup.py
+              ├── restore.py
+              ├── start.py
+              ├── stop.py
+              ├── restart.py
+              ├── status.py
+              ├── list.py
+              ├── search.py
+              └── catalog.py
 ```
 
 ### Data Flow
@@ -45,7 +48,8 @@ homestack-apps repo (GitHub)
 .cache/homestack-apps/apps/<app>/
     ├── app.yaml       (manifest: ports, secrets, networks, priority)
     ├── compose.yaml   (Docker Compose definition)
-    └── config.env     (default image tags + config)
+    ├── config.env     (default image tags + config)
+    └── test.yaml      (health check definitions)
     ↓ homestack install <app>
 installed/<app>/
     ├── compose.yaml   (copied from catalog)
@@ -69,17 +73,35 @@ This is implemented via `--env-file` flags passed to `docker compose`.
 
 ```
 homestack/
-├── bin/homestack           # CLI entrypoint (symlinked to /usr/local/bin)
-├── lib/
-│   ├── core.sh             # Colors, paths, compose_cmd, locking, helpers
-│   ├── db.sh               # SQLite CRUD for all 5 tables
-│   ├── registry.sh         # Git-based catalog sync
-│   ├── secrets.sh          # Password generation + secrets.env management
-│   ├── yaml.sh             # Minimal grep/sed YAML parser
-│   └── commands/           # One file per command, each exports cmd_run()
+├── bin/homestack           # Shell wrapper (activates venv, delegates to Python)
+├── homestack/              # Python package
+│   ├── __init__.py         # __version__ = "0.3.0"
+│   ├── __main__.py         # python -m homestack support
+│   ├── cli.py              # Click group, command registration, db_init
+│   ├── core.py             # Paths, compose_cmd, locking, helpers
+│   ├── db.py               # SQLite abstraction layer (5 tables)
+│   ├── registry.py         # Git-based catalog sync
+│   ├── secrets.py          # Password generation + secrets.env management
+│   ├── yaml_parser.py      # PyYAML-based parser with typed dataclasses
+│   ├── health.py           # Post-install health check runner
+│   └── commands/           # One file per command, each exports a Click command
+│       ├── __init__.py
+│       ├── install.py
+│       ├── update.py
+│       ├── remove.py
+│       ├── backup.py
+│       ├── restore.py
+│       ├── start.py
+│       ├── stop.py
+│       ├── restart.py
+│       ├── status.py
+│       ├── list.py
+│       ├── search.py
+│       └── catalog.py
 ├── config/
 │   └── homestack.env       # Global config (paths, timezone, UID/GID)
-├── setup.sh                # Interactive installer (Docker, deps, config)
+├── setup.sh                # Interactive installer (Docker, deps, venv, config)
+├── pyproject.toml          # Build config, dependencies, entry points
 ├── installed/              # Per-app runtime directories (created by install)
 │   └── <app>/
 │       ├── compose.yaml
@@ -90,89 +112,123 @@ homestack/
 ├── Media/                  # Shared media library
 ├── .cache/
 │   └── homestack-apps/     # Cloned catalog repo
+├── .venv/                  # Python virtual environment
 ├── homestack.db            # SQLite database
-└── .lock                   # flock file for concurrency control
+├── .lock                   # flock file for concurrency control
+└── tests/                  # pytest test suite
+    ├── conftest.py         # Shared fixtures (tmp_homestack, etc.)
+    └── unit/
+        ├── test_core.py
+        ├── test_db.py
+        ├── test_yaml_parser.py
+        ├── test_secrets.py
+        └── test_registry.py
 ```
 
 ## File-by-File Reference
 
-### bin/homestack (~60 lines)
+### bin/homestack (~15 lines)
 
-CLI entrypoint. Sources all library files, calls `db_init`, then dispatches commands via a `case` statement.
+Shell wrapper script. Activates the Python venv and delegates to the `homestack` entry point.
 
 **Key behaviors:**
-- Sets `HOMESTACK_DIR` to the script's parent directory
-- Sources: `core.sh`, `db.sh`, `registry.sh`, `secrets.sh`, `yaml.sh`
-- Calls `db_init` on every invocation (creates tables if missing)
-- ERR trap: logs failed commands to `audit_log` table
-- Command dispatch: sources `lib/commands/<cmd>.sh` and calls `cmd_run "$@"`
-- Shows `print_help` for unknown commands or no arguments
+- Resolves `HOMESTACK_DIR` from the script's location
+- Activates `.venv/bin/activate`
+- Passes all arguments through to the `homestack` Python command
+
+### homestack/cli.py (~80 lines)
+
+Click CLI entry point. Defines the main command group and registers all subcommands.
+
+**Functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `cli()` | `@click.group` — main entry point; calls `db_init()` on every invocation |
+| `cmd_log(limit)` | `@cli.command("log")` — displays audit log entries with color coding |
+
+Registers 12 subcommands via `cli.add_command()`.
 
 **Command dispatch table:**
 
 | Command | File | Lock Required |
 |---------|------|---------------|
-| `install` | `commands/install.sh` | Yes |
-| `update` | `commands/update.sh` | Yes |
-| `remove` | `commands/remove.sh` | Yes |
-| `backup` | `commands/backup.sh` | Yes |
-| `restore` | `commands/restore.sh` | Yes |
-| `start` | `commands/start.sh` | Yes |
-| `stop` | `commands/stop.sh` | Yes |
-| `restart` | `commands/restart.sh` | Yes |
-| `status` | `commands/status.sh` | No |
-| `list` | `commands/list.sh` | No |
-| `search` | `commands/search.sh` | No |
-| `catalog` | `commands/catalog.sh` | No |
+| `install` | `commands/install.py` | Yes |
+| `update` | `commands/update.py` | Yes |
+| `remove` | `commands/remove.py` | Yes |
+| `backup` | `commands/backup.py` | Yes |
+| `restore` | `commands/restore.py` | Yes |
+| `start` | `commands/start.py` | Yes |
+| `stop` | `commands/stop.py` | Yes |
+| `restart` | `commands/restart.py` | Yes |
+| `status` | `commands/status.py` | No |
+| `list` | `commands/list.py` | No |
+| `search` | `commands/search.py` | No |
+| `catalog` | `commands/catalog.py` | No |
+| `log` | inline in `cli.py` | No |
 
-### lib/core.sh (~150 lines)
+### homestack/core.py (~196 lines)
 
-Shared utilities sourced by every command.
+Shared utilities imported by all commands.
 
-**Global variables:**
-- `HOMESTACK_DIR` — repo root (set by `bin/homestack`)
+**Module-level constants (dynamically resolved):**
+- `HOMESTACK_DIR` — repo root
 - `INSTALLED_DIR` — `$HOMESTACK_DIR/installed`
-- `CONFIG_FILE` — `$HOMESTACK_DIR/config/homestack.env`
-- `DB_FILE` — `$HOMESTACK_DIR/homestack.db`
-- `LOCK_FILE` — `$HOMESTACK_DIR/.lock`
-- Color codes: `RED`, `GREEN`, `YELLOW`, `BLUE`, `CYAN`, `BOLD`, `NC`
+- `CONFIG_DIR` / `CONFIG_FILE` — `config/homestack.env`
+- `APPDATA_DIR`, `BACKUPS_DIR`, `MEDIA_DIR`
+- `DB_FILE` — `homestack.db`
+- `LOCK_FILE` — `.lock`
+- `CACHE_DIR` / `APPS_DIR` — `.cache/homestack-apps/apps`
 
 **Functions:**
 
 | Function | Purpose |
 |----------|---------|
-| `compose_cmd app args...` | Runs `docker compose` with stacked `--env-file` flags and `-f` pointing to the app's compose.yaml. Central function for ALL Docker operations. |
-| `get_installed_apps` | Lists installed apps by scanning `$INSTALLED_DIR/*/compose.yaml` |
-| `acquire_lock` | Uses `flock` (fd 9) on `.lock` file. Non-blocking — exits with error if lock held. |
-| `release_lock` | Releases fd 9. |
-| `validate_path_component str` | Rejects strings with `/`, `..`, or empty — prevents path traversal. |
-| `check_port_available port` | Uses `ss -tlnp` to check if a TCP port is in use. |
-| `print_help` | Prints CLI usage summary with all commands. |
+| `_resolve_homestack_dir()` | Resolves base dir from `HOMESTACK_DIR` env var or script location |
+| `refresh_paths()` | Re-derives all path globals (used by test fixtures) |
+| `step(msg)` / `success(msg)` / `warn(msg)` / `error(msg)` | Colored output helpers |
+| `acquire_lock()` | Non-blocking `flock`; exits with error if lock held |
+| `release_lock()` | Releases the flock |
+| `homestack_lock` | Context manager wrapping lock acquire/release |
+| `validate_path_component(name)` | Rejects empty strings, `/`, or `..` — prevents path traversal |
+| `check_port_available(port)` | Uses `socket.connect_ex()` to check if a TCP port is free |
+| `compose_cmd(app_dir, *args, capture=False, check=True)` | Runs `docker compose` with stacked `--env-file` flags. Central function for ALL Docker operations. |
+| `get_installed_apps()` | Lists installed apps sorted by priority (reads app.yaml) |
+| `is_installed(app_name)` | Checks if app dir + app.yaml exist in installed/ |
+| `ensure_network(name)` | Creates Docker network if it doesn't exist |
+| `ensure_dir(path)` | `mkdir -p` equivalent |
 
-### lib/db.sh (~219 lines)
+### homestack/db.py (~224 lines)
 
-Full SQLite abstraction layer. All queries go through `sqlite3 "$DB_FILE"`.
+Full SQLite abstraction layer. All queries go through `sqlite3`.
 
 **Functions:**
 
 | Function | Purpose |
 |----------|---------|
-| `db_init` | Creates all 5 tables with `CREATE TABLE IF NOT EXISTS`. Called on every CLI invocation. |
-| `db_escape str` | Escapes single quotes for SQL injection prevention (`'` → `''`). |
-| `db_add_app name version` | INSERT into `apps` table with `installed_at` timestamp. |
-| `db_remove_app name` | DELETE from `apps`, `config_overrides`, `health` for the given app. |
-| `db_get_app name` | SELECT from `apps`, returns pipe-delimited row. |
-| `db_update_app_version name version` | UPDATE `installed_version` and `updated_at`. |
-| `db_set_catalog_version name version` | UPDATE `catalog_version` field. |
-| `db_set_app_status name status` | UPDATE `status` field (running/stopped/error). |
-| `db_save_config_default app key value` | INSERT OR IGNORE into `config_overrides` (only saves initial defaults). |
-| `db_get_config_default app key` | SELECT `value` from `config_overrides` WHERE `is_user_modified=0`. |
-| `db_mark_config_modified app key` | UPDATE `is_user_modified=1`. |
-| `db_add_backup app path size type` | INSERT into `backups`. |
-| `db_get_backups app` | SELECT from `backups` ORDER BY `created_at DESC`. |
-| `db_delete_backup id` | DELETE from `backups` by id. |
-| `db_update_health app container status` | INSERT OR REPLACE into `health`. |
-| `db_add_audit action app detail exit_code` | INSERT into `audit_log`. |
+| `_connect()` | Opens SQLite connection with WAL mode and Row factory |
+| `_now()` | Returns UTC ISO 8601 timestamp |
+| `db_init()` | Creates all 5 tables with `CREATE TABLE IF NOT EXISTS` |
+| `db_set_installed(app, version)` | INSERT/REPLACE into `apps` table |
+| `db_set_catalog_version(app, version)` | UPDATE `catalog_version` for an app |
+| `db_set_updated(app, version)` | UPDATE `installed_version` and `updated_at` |
+| `db_remove_app(app)` | DELETE from `apps`, `config_overrides`, `health` |
+| `db_get_installed_version(app)` | SELECT installed_version |
+| `db_get_catalog_version(app)` | SELECT catalog_version |
+| `db_is_installed(app)` | Returns True if app exists in DB |
+| `db_get_install_date(app)` | Returns installed_at timestamp |
+| `db_track_config_defaults(app, config_file)` | Stores all config.env defaults (INSERT OR IGNORE) |
+| `db_update_config_default(app, key, value)` | Updates default only if user hasn't modified |
+| `db_is_config_modified(app, key, current_value)` | Returns True if user changed from default |
+| `db_mark_config_modified(app, key, value)` | Marks config key as user-modified |
+| `db_get_modified_configs(app)` | Returns user-modified key/value pairs |
+| `db_record_backup(app, path, size, type)` | INSERT into `backups` |
+| `db_list_backups(app)` / `db_list_all_backups()` | SELECT backups newest first |
+| `db_remove_backup(backup_id)` | DELETE backup by id |
+| `db_update_health(app, container, status)` | INSERT OR REPLACE health status |
+| `db_get_health(app)` | Returns health records |
+| `db_log_action(action, app, detail, exit_code)` | INSERT audit log (wrapped in try/except — never crashes) |
+| `db_get_audit_log(limit)` | Returns latest audit log entries |
 
 **Database Schema (SQLite):**
 
@@ -181,16 +237,16 @@ CREATE TABLE apps (
     name            TEXT PRIMARY KEY,
     installed_version TEXT,
     catalog_version TEXT,
-    installed_at    TEXT,       -- ISO 8601
-    updated_at      TEXT,       -- ISO 8601
-    status          TEXT        -- running | stopped | error
+    installed_at    TEXT,
+    updated_at      TEXT,
+    status          TEXT
 );
 
 CREATE TABLE config_overrides (
     app             TEXT,
     key             TEXT,
     value           TEXT,
-    is_user_modified INTEGER DEFAULT 0,  -- 0=default, 1=user-edited
+    is_user_modified INTEGER DEFAULT 0,
     PRIMARY KEY (app, key)
 );
 
@@ -199,47 +255,45 @@ CREATE TABLE backups (
     app             TEXT,
     path            TEXT,
     size_bytes      INTEGER,
-    created_at      TEXT,       -- ISO 8601
-    type            TEXT        -- config | data
+    created_at      TEXT,
+    type            TEXT
 );
 
 CREATE TABLE health (
     app             TEXT,
     container       TEXT,
-    status          TEXT,       -- healthy | unhealthy | starting | unknown
-    checked_at      TEXT,       -- ISO 8601
+    status          TEXT,
+    checked_at      TEXT,
     PRIMARY KEY (app, container)
 );
 
 CREATE TABLE audit_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp       TEXT,       -- ISO 8601
-    action          TEXT,       -- install | update | remove | backup | restore | error
+    timestamp       TEXT,
+    action          TEXT,
     app             TEXT,
     detail          TEXT,
     exit_code       INTEGER
 );
 ```
 
-### lib/registry.sh (~101 lines)
+### homestack/registry.py (~149 lines)
 
 Manages the local clone of the `homestack-apps` catalog.
-
-**Global variables:**
-- `CATALOG_DIR` — `$HOMESTACK_DIR/.cache/homestack-apps`
-- `APPS_DIR` — `$CATALOG_DIR/apps` (set after sync)
 
 **Functions:**
 
 | Function | Purpose |
 |----------|---------|
-| `registry_sync` | Clones or pulls the catalog repo. Uses `HOMESTACK_APPS_REPO` from homestack.env. |
-| `registry_ensure` | Calls `registry_sync` if `APPS_DIR` doesn't exist. |
-| `registry_list` | Lists all app directories in the catalog. |
-| `registry_find app` | Returns path to a specific app dir, or fails. |
-| `registry_search query` | Grep-based search across app.yaml files for name/description matches. |
+| `_repo_url()` | Resolves catalog repo URL from env/config/default |
+| `registry_sync()` | Clones or pulls the catalog repo; updates catalog versions in DB |
+| `_update_catalog_versions()` | Syncs catalog version numbers into DB for installed apps |
+| `registry_ensure()` | Ensures catalog is available locally; syncs if missing |
+| `registry_list()` | Returns list of all catalog apps as dicts |
+| `registry_find(app_name)` | Finds app dir by name (exact + case-insensitive fallback) |
+| `registry_search(query)` | Substring search across name/display_name/description/category |
 
-### lib/secrets.sh (~133 lines)
+### homestack/secrets.py (~125 lines)
 
 Generates and manages `secrets.env` files.
 
@@ -247,194 +301,217 @@ Generates and manages `secrets.env` files.
 
 | Function | Purpose |
 |----------|---------|
-| `generate_password length` | Generates alphanumeric password from `/dev/urandom`. No special characters (avoids escaping issues in env files). |
-| `generate_secrets_file app_yaml_path output_path` | Parses secrets from `app.yaml`, generates passwords for `generate: true` entries, uses defaults for others, writes to `secrets.env` with `chmod 600`. |
-| `append_new_secrets app_yaml_path secrets_file` | During updates: adds any NEW secret keys from catalog that don't exist in the current secrets.env. Does NOT overwrite existing secrets. |
+| `generate_password(length)` | Generates alphanumeric password via `secrets.choice()` |
+| `generate_secrets_file(app_yaml, output, *, interactive=True)` | Creates `secrets.env` from app.yaml; auto-generates, prompts (if interactive), or uses defaults |
+| `append_new_secrets(app_yaml, secrets_file, *, interactive=True)` | During updates: adds new secret keys without overwriting existing ones |
 
-### lib/yaml.sh (~64 lines)
+### homestack/yaml_parser.py (~131 lines)
 
-Minimal YAML parser using grep/sed/awk. Does NOT handle all YAML — only the subset used in app.yaml files.
+Full YAML parser using PyYAML with typed dataclasses.
+
+**Dataclasses:**
+
+| Class | Fields |
+|-------|--------|
+| `SecretDef` | `key`, `prompt`, `default`, `generate`, `length` |
+| `HealthCheck` | `url`, `method`, `expected_status`, `body_contains`, `timeout` |
+| `ExecCheck` | `container`, `command`, `expected_output` |
 
 **Functions:**
 
 | Function | Purpose |
 |----------|---------|
-| `yaml_get file key` | Gets a scalar value: `grep "^key:" file \| sed ...`. |
-| `yaml_get_array file key` | Gets a YAML list as newline-delimited values. Handles `- item` syntax. |
-| `yaml_parse_secrets file` | Parses the `secrets:` block into structured output. Returns lines like `KEY\|prompt\|default\|generate\|length`. |
+| `load_yaml(filepath)` | Loads YAML file via `yaml.safe_load`, returns dict |
+| `yaml_get(filepath, key)` | Gets a scalar value as string |
+| `yaml_get_array(filepath, key)` | Gets a list value as list of strings |
+| `parse_secrets(filepath)` | Parses `secrets:` block into `list[SecretDef]` |
+| `parse_health_checks(filepath)` | Parses `health_checks:` into `list[HealthCheck]` |
+| `parse_exec_checks(filepath)` | Parses `exec_checks:` into `list[ExecCheck]` |
+| `get_startup_time(filepath)` | Returns `startup_time` int (default 30) |
 
-**Limitations:**
-- No nested object support beyond secrets
-- No multi-line values
-- No anchors/aliases
-- Assumes clean formatting (key at start of line, space after colon)
+### homestack/health.py (~137 lines)
 
-### lib/commands/ — Command Files
+Post-install health check runner.
 
-Every command file exports a single function `cmd_run()` that receives remaining CLI args.
+**Functions:**
 
-#### install.sh (~140 lines)
-1. Takes app name argument
-2. Calls `registry_ensure` then `registry_find` to locate the app
-3. Checks if already installed (`db_get_app`)
-4. Reads `app.yaml` for port, networks, appdata_dirs, media_dirs
-5. Checks port availability (`check_port_available`)
-6. Creates Docker networks if needed
-7. Creates appdata and media directories
+| Function | Purpose |
+|----------|---------|
+| `run_health_checks(app_name, install_dir)` | Orchestrates all checks: waits for startup, runs HTTP + exec checks |
+| `_wait_for_healthy(install_dir, timeout)` | Polls `docker compose ps` until containers report "Up" |
+| `_run_http_check(app_name, hc, retries=5, retry_delay=3)` | HTTP check with retry logic for timing issues |
+| `_run_exec_check(app_name, install_dir, ec)` | Runs `docker compose exec` and validates output |
+
+### homestack/commands/ — Command Files
+
+Every command file exports a Click command object.
+
+#### install.py (~173 lines)
+1. Takes app name argument + `--skip-checks` + `--defaults` flags
+2. Detects interactive mode via `os.isatty(sys.stdin.fileno())`
+3. Calls `registry_ensure` then `registry_find` to locate the app
+4. Checks if already installed
+5. Reads `app.yaml` for port, networks, appdata_dirs, media_dirs
+6. Checks port availability
+7. Creates Docker networks, appdata, and media directories
 8. Copies `compose.yaml` and `config.env` to `installed/<app>/`
-9. Generates `secrets.env` via `generate_secrets_file`
-10. Saves all config.env defaults to DB (`db_save_config_default`)
-11. Starts the app via `compose_cmd up -d`
-12. Records in DB (`db_add_app`) and audit log
-13. **Rollback trap:** On failure, cleans up installed dir, networks, and DB entry
+9. Pre-creates volume mount directories (`_precreate_volumes`)
+10. Generates `secrets.env` via `generate_secrets_file`
+11. Saves config defaults to DB
+12. Starts the app via `compose_cmd up -d`
+13. Runs health checks (unless `--skip-checks`)
+14. Records in DB and audit log
+15. **Rollback:** On failure, cleans up installed dir, networks, and DB entry
 
-#### update.sh (~138 lines)
+#### update.py (~139 lines)
 1. Creates automatic backup before updating
-2. Syncs catalog (`registry_sync`)
+2. Syncs catalog
 3. Compares installed version vs catalog version
-4. `merge_config()`: Reads new config.env, compares each key against DB-stored defaults — if user hasn't modified a key, updates it to the new default; if user modified it, preserves their value
-5. Updates compose.yaml from catalog
-6. `append_new_secrets()`: Adds any new secret keys without overwriting existing ones
-7. Pulls new images and recreates containers
-8. Updates DB version and audit log
+4. `_merge_config()`: Preserves user-modified values, updates defaults, adds new keys
+5. Updates compose.yaml and appends new secrets
+6. Pulls new images and recreates containers
+7. Updates DB version and audit log
 
-#### remove.sh (~75 lines)
+#### remove.py (~93 lines)
 1. Stops containers via `compose_cmd down`
-2. Removes Docker networks if they become unused
-3. Optionally deletes AppData (prompts user with `-y` flag to skip)
-4. Removes `installed/<app>/` directory
-5. Cleans up DB: `db_remove_app`
+2. Removes Docker networks if unused
+3. Optionally deletes AppData (Docker fallback for container-owned files)
+4. Removes `installed/<app>/` directory and DB records
 
-#### backup.sh (~128 lines)
+#### backup.py (~151 lines)
 1. Reads `backup_strategy` from `app.yaml` (stop or live)
-2. If `stop`: stops containers, backs up, restarts
-3. Creates two separate tar archives:
-   - `<app>-config-<timestamp>.tar.gz` — the `installed/<app>/` dir
-   - `<app>-data-<timestamp>.tar.gz` — the `AppData/<app>/` dir
-4. Records both in DB (`db_add_backup`)
-5. Rotation: keeps `KEEP_LAST` (default 5) backups per app per type, deletes older
-6. Supports `all` argument to back up every installed app
+2. Creates config + data tar archives
+3. Docker fallback for permission errors on container-owned files
+4. Rotation: keeps last 5 backups per type
 
-#### restore.sh (~182 lines)
-1. Queries DB for available backups
-2. Interactive selection (numbered list)
-3. Type-aware extraction (config vs data go to different directories)
-4. Restarts containers after restore
+#### restore.py (~152 lines)
+1. Interactive backup selection
+2. Type-aware extraction (config vs data)
+3. Restarts containers after restore
 
-#### restart.sh (~78 lines)
-- Restarts one app or all apps
-- Uses `compose_cmd restart` (not stop+start)
-- Priority-ordered when restarting all
+#### start.py / stop.py / restart.py
+- Priority-ordered start/stop/restart for one or all apps
 
-#### status.sh (~69 lines)
-- Runs `compose_cmd ps` and parses tab-delimited output
-- Color-codes status (green=running, red=exited, yellow=other)
-- Caches health status in DB via `db_update_health`
-
-#### start.sh (~61 lines) / stop.sh (~44 lines)
-- Start/stop one or all apps
-- Priority ordering: lower number starts first, stops last (reverse)
-- Uses `compose_cmd up -d` / `compose_cmd down`
-
-#### list.sh (~32 lines)
-- Lists installed apps with version from DB
-
-#### search.sh (~35 lines)
-- Searches catalog app.yaml files for query string
-
-#### catalog.sh (~47 lines)
-- Lists all available apps in the catalog with version/description
+#### status.py / list.py / search.py / catalog.py
+- Read-only commands, no lock required
 
 ### setup.sh (~370 lines)
 
-Interactive first-run installer. Handles:
-1. Auto-installs dependencies: `sqlite3`, `git`, `curl`
-2. Installs Docker via `get.docker.com` if missing
-3. Installs Docker Compose plugin (`docker-compose-plugin`) via apt/dnf/yum
-4. Creates a dedicated `homestack` system user and group:
-   - System user with `--no-login` shell, home dir set to install path
-   - Added to `docker` group for container management
-   - Calling user (`SUDO_USER`) added to `homestack` group for CLI access
-5. Interactive config: asks for APPDATA, BACKUPS, MEDIA paths, timezone, PUID/PGID
-   - PUID/PGID default to the `homestack` user's UID/GID
+Interactive first-run installer:
+1. Installs system dependencies (`git`, `curl`)
+2. Installs Docker + Compose plugin
+3. Creates `homestack` system user and group
+4. Creates Python venv and `pip install -e .`
+5. Interactive config setup
 6. Writes `config/homestack.env`
-7. Initializes SQLite database
-8. Syncs catalog repo
-9. Sets ownership (`homestack:homestack`) and permissions (`2775` setgid) on all directories
-   - `secrets.env` files: `chmod 640`
-   - `homestack.db`: `chmod 660`
-10. Creates CLI symlink at `/usr/local/bin/homestack`
-
-Also supports `curl -fsSL <url> | sudo bash` one-liner install (clones the repo first).
+7. Initializes database and syncs catalog
+8. Sets permissions and creates CLI symlink
 
 ### config/homestack.env
 
-Global config values available to all compose files:
-
 ```bash
 HOMESTACK_DIR=/path/to/homestack
-APPDATA=/path/to/homestack/AppData     # or custom path
+APPDATA=/path/to/homestack/AppData
 BACKUPS=/path/to/homestack/Backups
 MEDIA=/path/to/homestack/Media
-TZ=America/New_York                     # or user's timezone
+TZ=America/New_York
 PUID=1000
 PGID=1000
-DOCKER_USER=1000:1000                   # derived from PUID:PGID
+DOCKER_USER=1000:1000
 HOMESTACK_APPS_REPO=https://github.com/filippvizvary/homestack-apps.git
 ```
 
 ## Key Patterns & Conventions
 
 ### Naming
-- Library functions are prefixed by module: `db_`, `registry_`, `yaml_`, `generate_`, `compose_`
-- Command files: `lib/commands/<verb>.sh`, each exports `cmd_run()`
+- Library functions use module-specific prefixes: `db_`, `registry_`, `compose_cmd`, `generate_`
+- Command files: `homestack/commands/<verb>.py`, each exports a Click command
 - App directories: lowercase, alphanumeric, matching the `name:` field in `app.yaml`
 
 ### Error Handling
-- All files use `set -euo pipefail` (strict mode)
-- ERR trap in `bin/homestack` logs failures to `audit_log`
-- `install.sh` has a dedicated rollback trap that cleans up on failure
-- Functions `die` or `echo >&2` + `return 1` for errors
+- `core.error()` + `sys.exit(1)` for fatal errors
+- `db_log_action()` wrapped in try/except (never crashes)
+- `install.py` has rollback cleanup on failure
+- `backup.py` and `remove.py` use Docker fallbacks for permission errors
 
 ### Concurrency
-- File-based locking via `flock` on `$HOMESTACK_DIR/.lock` (file descriptor 9)
-- Non-blocking: if lock is held, exits immediately with an error
-- Only mutating commands (install, update, remove, backup, restore, start, stop, restart) acquire the lock
-- Read-only commands (status, list, search, catalog) run without locks
+- File-based locking via `fcntl.flock` (non-blocking)
+- `homestack_lock` context manager wraps acquire/release
+- Only mutating commands acquire the lock
+
+### Interactive Detection
+- `os.isatty(sys.stdin.fileno())` detects non-interactive sessions
+- `--defaults` flag forces non-interactive mode
+- Prevents `click.prompt()` from hanging in non-TTY environments
 
 ### Security
-- Dedicated `homestack` system user owns all files — no login shell, least-privilege
-- Calling user added to `homestack` group for CLI access
-- Directories use setgid (`2775`) so new files inherit the group
-- `secrets.env` files are `chmod 640` and listed in `.gitignore`
-- `homestack.db` is `chmod 660` and in `.gitignore`
-- `validate_path_component()` rejects `/` and `..` to prevent path traversal
-- `db_escape()` prevents SQL injection in all DB operations
-- Passwords are alphanumeric only (no special chars that could break env file parsing)
+- Dedicated `homestack` system user owns all files
+- `secrets.env` files are `chmod 600` and `.gitignored`
+- `validate_path_component()` rejects `/` and `..`
+- Passwords are alphanumeric only
 
 ### Docker Compose Patterns
-- All compose operations go through `compose_cmd()` — never call `docker compose` directly
-- Env file stacking: global → app config → app secrets (via `--env-file` flags)
-- Networks are created as Docker external networks, shared across apps
-- Containers typically use `user: ${DOCKER_USER}` or `PUID`/`PGID` env vars
+- All operations go through `compose_cmd()` — never call `docker compose` directly
+- Env file stacking: global → app config → app secrets
+- Networks created as Docker external networks
+- Volume mount paths pre-created to avoid root ownership
 
 ### Priority Ordering
-- Each app has a `priority` value (integer) in its `app.yaml`
-- Lower priority = starts first (e.g., databases before apps)
-- Stop order is reversed (apps stop before databases)
+- `priority` value in `app.yaml` (lower = starts first)
+- Stop order is reversed
 - Used by `start all`, `stop all`, `restart all`
 
 ### Config Tracking
-- On install: all config.env key=value pairs are saved to `config_overrides` table as defaults
-- On update: `merge_config()` compares current values against stored defaults
-  - If value matches default → user hasn't changed it → safe to update
-  - If value differs from default → user customized it → preserve their value → mark `is_user_modified=1`
+- On install: config.env defaults saved to `config_overrides` table
+- On update: `_merge_config()` preserves user edits, updates defaults
 
-### Catalog Caching
-- homestack-apps repo is cloned to `.cache/homestack-apps/`
-- `registry_sync()` does `git pull` if already cloned
-- App data is read directly from the clone (no DB caching of catalog data)
-- `catalog_version` in the DB is updated on install/update from `app.yaml`
+## Testing
+
+### Test Structure
+
+```
+tests/
+├── conftest.py              # Shared fixtures (tmp_homestack, etc.)
+├── unit/
+│   ├── test_core.py         # Path resolution, validation, locking, helpers
+│   ├── test_db.py           # All db_ functions, CRUD, schema
+│   ├── test_yaml_parser.py  # YAML loading, dataclass parsing
+│   ├── test_secrets.py      # Password generation, file creation, append
+│   └── test_registry.py     # Catalog find, list, search
+└── fixtures/
+    ├── sample.yaml          # Full-featured YAML fixture
+    └── nosecrets.yaml       # Minimal YAML fixture
+```
+
+### Running Tests
+
+```bash
+# Activate venv
+source .venv/bin/activate
+
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/unit/test_db.py
+
+# Run specific test
+pytest -k "test_db_init"
+```
+
+72 unit tests covering core, db, yaml_parser, secrets, and registry modules.
+
+### Test Fixtures
+
+The `tmp_homestack` fixture in `conftest.py`:
+- Creates a temporary directory with the full HomeStack layout
+- Sets `HOMESTACK_DIR` environment variable
+- Calls `refresh_paths()` to update all module-level path constants
+- Creates fake catalog with sample app definitions
+- Initializes the database
 
 ## End-to-End Flows
 
@@ -444,18 +521,19 @@ homestack install jellyfin
   → acquire_lock
   → registry_ensure (clone/pull catalog)
   → registry_find jellyfin → .cache/homestack-apps/apps/jellyfin/
-  → db_get_app jellyfin → not found (good)
+  → is_installed jellyfin → False
   → yaml_get app.yaml port → 8096
   → check_port_available 8096
-  → yaml_get_array app.yaml networks → (none for jellyfin)
-  → yaml_get_array app.yaml appdata_dirs → jellyfin
-  → mkdir -p AppData/jellyfin
-  → cp compose.yaml, config.env → installed/jellyfin/
-  → generate_secrets_file → installed/jellyfin/secrets.env (empty for jellyfin)
-  → save config.env defaults to DB (db_save_config_default)
+  → ensure_network (none for jellyfin)
+  → ensure_dir AppData/jellyfin
+  → copy compose.yaml, config.env → installed/jellyfin/
+  → _precreate_volumes (parse compose.yaml volume mounts)
+  → generate_secrets_file → installed/jellyfin/secrets.env
+  → db_track_config_defaults
   → compose_cmd jellyfin up -d
-  → db_add_app jellyfin 10.11.5
-  → db_add_audit install jellyfin "Installed version 10.11.5" 0
+  → run_health_checks (test.yaml → HTTP GET :8096/health)
+  → db_set_installed jellyfin 10.11.5
+  → db_log_action install
   → release_lock
 ```
 
@@ -463,20 +541,16 @@ homestack install jellyfin
 ```
 homestack update jellyfin
   → acquire_lock
-  → backup jellyfin (automatic pre-update backup)
+  → _backup_app jellyfin (automatic pre-update backup)
   → registry_sync (pull latest catalog)
-  → compare versions: installed_version vs yaml_get version
-  → merge_config: for each key in new config.env:
-      - db_get_config_default jellyfin KEY → old default
-      - compare current value in installed config.env
-      - if current == old default → update to new value
-      - if current != old default → keep user's value, db_mark_config_modified
-  → cp new compose.yaml → installed/jellyfin/
-  → append_new_secrets (adds missing keys only)
-  → compose_cmd jellyfin pull
-  → compose_cmd jellyfin up -d
-  → db_update_app_version jellyfin <new_version>
-  → db_add_audit update jellyfin "Updated to <new_version>" 0
+  → compare versions
+  → _merge_config: preserve user edits, update defaults
+  → copy new compose.yaml
+  → append_new_secrets
+  → compose_cmd pull
+  → compose_cmd up -d
+  → db_set_updated jellyfin <new_version>
+  → db_log_action update
   → release_lock
 ```
 
@@ -485,137 +559,48 @@ homestack update jellyfin
 homestack backup jellyfin
   → acquire_lock
   → check backup_strategy (live for jellyfin)
-  → tar -czf Backups/jellyfin-config-<ts>.tar.gz installed/jellyfin/
-  → tar -czf Backups/jellyfin-data-<ts>.tar.gz AppData/jellyfin/
-  → db_add_backup jellyfin <path> <size> config
-  → db_add_backup jellyfin <path> <size> data
-  → rotate: keep last 5 config + 5 data backups, delete older (DB + files)
+  → tar config → Backups/jellyfin-config-<ts>.tar.gz
+  → tar data → Backups/jellyfin-data-<ts>.tar.gz
+  → db_record_backup (config + data)
+  → _rotate_backups (keep last 5 per type)
   → release_lock
 ```
-
-### Restore Flow
-```
-homestack restore jellyfin
-  → acquire_lock
-  → db_get_backups jellyfin → list backups
-  → user selects backup interactively
-  → stop containers (compose_cmd down)
-  → extract tar to appropriate directory (config→installed/, data→AppData/)
-  → start containers (compose_cmd up -d)
-  → db_add_audit restore jellyfin "Restored from <backup>" 0
-  → release_lock
-```
-
-## Testing
-
-Three-tier automated test suite using [BATS](https://github.com/bats-core/bats-core) (Bash Automated Testing System).
-
-### Test Structure
-
-```
-tests/
-├── run_tests.sh              # Main runner — installs BATS, dispatches suites
-├── test_helper.bash           # Shared setup/teardown (temp env, fixture loading)
-├── .bats/                     # Auto-installed BATS framework (gitignored)
-├── fixtures/
-│   ├── sample.yaml            # Full-featured YAML fixture (secrets, networks, media)
-│   ├── nosecrets.yaml         # Minimal YAML fixture
-│   └── catalog/apps/          # Fake catalog for integration tests
-│       ├── testapp/           # nginx:1.27-alpine with 1 secret, port 18080
-│       └── testapp-nosecrets/ # nginx:1.27-alpine, no secrets, port 18081
-├── unit/                      # No Docker required
-│   ├── test_yaml.bats         # 13 tests — yaml_get, yaml_get_array, yaml_parse_secrets
-│   ├── test_db.bats           # 18 tests — all db_ functions, schema, CRUD
-│   ├── test_core.bats         # 13 tests — validation, locking, paths, help
-│   ├── test_secrets.bats      # 13 tests — generation, file permissions, append
-│   └── test_registry.bats    # 10 tests — find, list, search
-├── integration/               # Docker required
-│   ├── test_lifecycle.bats    # Full install→status→stop→start→backup→update→remove
-│   ├── test_readonly.bats     # version, help, list, catalog, search, log
-│   └── test_install_errors.bats # Missing args, path traversal, duplicates
-└── apps/                      # Docker + real images
-    └── test_app_health.bats   # Installs real app, validates via test.yaml
-```
-
-### Running Tests
-
-```bash
-# Run all unit tests (no Docker needed)
-./tests/run_tests.sh unit
-
-# Run integration tests (requires Docker)
-./tests/run_tests.sh integration
-
-# Run health checks for a specific app (requires Docker + image pull)
-APP=jellyfin ./tests/run_tests.sh apps
-
-# Run everything
-./tests/run_tests.sh all
-```
-
-### test.yaml Format (in homestack-apps)
-
-Each app in the catalog includes a `test.yaml` defining automated health checks:
-
-```yaml
-startup_time: 30                  # Seconds to wait for containers
-health_checks:
-  - url: "http://localhost:8096/health"
-    method: GET                   # Optional, default: GET
-    expected_status: 200          # Optional, default: 200
-    body_contains: "ok"           # Optional
-    timeout: 10                   # Optional, default: 10s
-exec_checks:                      # Optional — for database sidecars
-  - container: redis
-    command: "redis-cli ping"
-    expected_output: "PONG"
-```
-
-### YAML Parser Functions for Tests
-
-`lib/yaml.sh` provides two functions for parsing test.yaml:
-
-| Function | Returns |
-|----------|---------|
-| `yaml_parse_health_checks file` | Lines: `url\|method\|expected_status\|body_contains\|timeout` |
-| `yaml_parse_exec_checks file` | Lines: `container\|command\|expected_output` |
-
-### Writing New Tests
-
-- **Unit tests:** Source libs directly, create temp `HOMESTACK_DIR`, no Docker
-- **Integration tests:** Use `bin/homestack` binary, need Docker for lifecycle commands
-- **App health tests:** Set `APP=appname`, reads test.yaml from catalog or fixtures
 
 ## Known Limitations
 
-1. **YAML parser is fragile** — only handles the subset used in app.yaml/test.yaml; no nested objects, multi-line values, or anchors
-2. **Single-host only** — no clustering or multi-node support
-3. **No TLS/reverse proxy** — apps expose raw HTTP ports
-4. **No dependency resolution** — apps don't declare dependencies on other apps
-5. **SQLite concurrent access** — flock prevents concurrent CLI runs, but SQLite itself has limited concurrent write support
-6. **No update notifications** — user must run `homestack update` manually to check for new versions
+1. **Single-host only** — no clustering or multi-node support
+2. **No TLS/reverse proxy** — apps expose raw HTTP ports
+3. **No dependency resolution** — apps don't declare dependencies on other apps
+4. **No update notifications** — user must run `homestack update` manually
+5. **Container-owned files** — some apps create files as internal users; handled via Docker fallbacks
 
 ## Common Development Tasks
 
 ### Adding a new CLI command
-1. Create `lib/commands/<verb>.sh` with a `cmd_run()` function
-2. Add the case entry in `bin/homestack`
-3. Update `print_help` in `lib/core.sh`
-4. Decide if it needs a lock (mutating = yes, read-only = no)
+1. Create `homestack/commands/<verb>.py` with a Click command
+2. Register it in `homestack/cli.py` via `cli.add_command()`
+3. Decide if it needs a lock (mutating = yes, read-only = no)
 
 ### Adding a new DB table
-1. Add `CREATE TABLE IF NOT EXISTS` in `db_init()` in `lib/db.sh`
+1. Add `CREATE TABLE IF NOT EXISTS` in `db_init()` in `homestack/db.py`
 2. Add CRUD functions with `db_` prefix
-3. Use `db_escape()` for all string values in queries
 
 ### Modifying the install/update flow
-1. Edit `lib/commands/install.sh` or `lib/commands/update.sh`
-2. Ensure rollback trap in install handles the new step
+1. Edit `homestack/commands/install.py` or `update.py`
+2. Ensure rollback in install handles the new step
 3. Update audit logging if adding new actions
-4. Test with at least one app that has secrets and one without
+4. Test with apps that have secrets and ones without
 
 ### Working with the catalog
-1. App definitions live in the `homestack-apps` repo, not here
-2. The local clone is at `.cache/homestack-apps/`
-3. To test catalog changes locally, modify files in `.cache/homestack-apps/apps/<app>/`
+1. App definitions live in the `homestack-apps` repo
+2. Local clone is at `.cache/homestack-apps/`
+3. To test locally, modify files in `.cache/homestack-apps/apps/<app>/`
 4. `registry_sync()` will overwrite local changes on next pull
+
+### Running on a VM
+```bash
+cd ~/homestack
+python3 -m venv .venv
+.venv/bin/pip install -e .
+.venv/bin/homestack install uptimekuma --defaults
+```
