@@ -60,7 +60,10 @@ yaml_parse_secrets() {
   done < "$file"
 
   # Output last secret if we hit EOF while still in secrets block
-  [[ $in_secrets -eq 1 && -n "$key" ]] && echo "${key}|${prompt}|${default_val}|${generate}|${length}"
+  if [[ $in_secrets -eq 1 && -n "$key" ]]; then
+    echo "${key}|${prompt}|${default_val}|${generate}|${length}"
+  fi
+  return 0
 }
 
 # Parse the health_checks block from test.yaml
@@ -102,7 +105,10 @@ yaml_parse_health_checks() {
     fi
   done < "$file"
 
-  [[ $in_block -eq 1 && -n "$url" ]] && echo "${url}|${method}|${expected_status}|${body_contains}|${timeout}"
+  if [[ $in_block -eq 1 && -n "$url" ]]; then
+    echo "${url}|${method}|${expected_status}|${body_contains}|${timeout}"
+  fi
+  return 0
 }
 
 # Parse the exec_checks block from test.yaml
@@ -141,5 +147,8 @@ yaml_parse_exec_checks() {
     fi
   done < "$file"
 
-  [[ $in_block -eq 1 && -n "$container" ]] && echo "${container}|${command}|${expected_output}"
+  if [[ $in_block -eq 1 && -n "$container" ]]; then
+    echo "${container}|${command}|${expected_output}"
+  fi
+  return 0
 }
