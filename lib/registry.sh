@@ -75,6 +75,16 @@ registry_find() {
   local app_dir="${APPS_DIR}/${app_name}"
   if [[ -d "$app_dir" && -f "${app_dir}/app.yaml" ]]; then
     echo "$app_dir"
+    return 0
+  fi
+
+  # Case-insensitive fallback: try lowercase version
+  local lower_name
+  lower_name=$(echo "$app_name" | tr '[:upper:]' '[:lower:]')
+  app_dir="${APPS_DIR}/${lower_name}"
+  if [[ -d "$app_dir" && -f "${app_dir}/app.yaml" ]]; then
+    echo "$app_dir"
+    return 0
   fi
 }
 

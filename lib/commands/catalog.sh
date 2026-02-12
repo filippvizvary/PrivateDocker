@@ -37,7 +37,7 @@ catalog_list() {
     port=$(yaml_get "${dir}app.yaml" "port")
     local installed_marker=""
     is_installed "$name" && installed_marker=" ${GREEN}✓${NC}"
-    echo -e "  ${CYAN}${display}${NC}$(printf '%*s' $((18 - ${#display})) '') ${category}$(printf '%*s' $((15 - ${#category})) '') ${port}$(printf '%*s' $((8 - ${#port})) '') ${description}${installed_marker}"
+    echo -e "  ${CYAN}${name}${NC}$(printf '%*s' $((18 - ${#name})) '') ${category}$(printf '%*s' $((15 - ${#category})) '') ${port}$(printf '%*s' $((8 - ${#port})) '') ${description}${installed_marker}"
   done
 
   echo ""

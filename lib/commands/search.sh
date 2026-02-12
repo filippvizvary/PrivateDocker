@@ -25,7 +25,7 @@ cmd_run() {
   while IFS='|' read -r name display description category port; do
     local installed_marker=""
     is_installed "$name" && installed_marker=" ✓"
-    printf "  %-18s %-15s %-8s %s%s\n" "$display" "$category" "$port" "$description" "$installed_marker"
+    printf "  %-18s %-15s %-8s %s%s\n" "$name" "$category" "$port" "$description" "$installed_marker"
   done <<< "$results"
 
   echo ""
