@@ -1,5 +1,6 @@
 #!/bin/bash
-# HomeStack — Self-hosted Docker management CLI
+# HomeStack — CLI shim
+# Activates the Python venv and delegates to the Click CLI.
 set -euo pipefail
 
 # Resolve HomeStack root directory — follow symlinks to find real install path
@@ -12,55 +13,12 @@ done
 HOMESTACK_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 export HOMESTACK_DIR
 
-# Load libraries
-source "${HOMESTACK_DIR}/lib/yaml.sh"
-source "${HOMESTACK_DIR}/lib/core.sh"
-source "${HOMESTACK_DIR}/lib/db.sh"
-source "${HOMESTACK_DIR}/lib/secrets.sh"
-source "${HOMESTACK_DIR}/lib/registry.sh"
+VENV="${HOMESTACK_DIR}/.venv"
 
-# Initialize database (creates if not exists)
-db_init
+if [[ ! -d "$VENV" ]]; then
+  echo "Error: Python virtual environment not found at ${VENV}"
+  echo "Run setup.sh to install HomeStack."
+  exit 1
+fi
 
-# Parse command
-COMMAND="${1:-help}"
-shift 2>/dev/null || true
-
-# Error trap for audit logging
-trap 'db_log_action "error" "" "Command \"homestack ${COMMAND}\" failed at line ${LINENO}" 1 2>/dev/null || true' ERR
-
-case "$COMMAND" in
-  install|remove|start|stop|restart|status|update|backup|restore|list|search|catalog)
-    source "${HOMESTACK_DIR}/lib/commands/${COMMAND}.sh"
-    cmd_run "$@"
-    ;;
-  log)
-    limit="${1:-20}"
-    echo -e "${BLUE}Audit Log (last ${limit} entries)${NC}"
-    echo ""
-    printf "  %-20s %-10s %-15s %s\n" "TIMESTAMP" "ACTION" "APP" "DETAIL"
-    printf "  %-20s %-10s %-15s %s\n" "---------" "------" "---" "------"
-    log_output=$(db_get_audit_log "$limit")
-    if [[ -n "$log_output" ]]; then
-      while IFS='|' read -r ts action app detail exit_code; do
-        [[ -z "$ts" ]] && continue
-        color="${NC}"
-        [[ "$exit_code" != "0" ]] && color="${RED}"
-        printf "  ${color}%-20s %-10s %-15s %s${NC}\n" "$ts" "$action" "${app:-—}" "${detail:-—}"
-      done <<< "$log_output"
-    fi
-    echo ""
-    ;;
-  help|--help|-h)
-    print_help
-    ;;
-  version|--version|-v)
-    echo "HomeStack v0.2.0"
-    ;;
-  *)
-    error "Unknown command: ${COMMAND}"
-    echo ""
-    print_help
-    exit 1
-    ;;
-esac
+exec "${VENV}/bin/python" -m homestack "$@"

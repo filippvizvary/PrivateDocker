@@ -43,6 +43,36 @@ echo ""
 # ============================================================
 step "Checking dependencies..."
 
+# Check for python3
+if command -v python3 &>/dev/null; then
+  PYTHON_VERSION=$(python3 --version | awk '{print $2}')
+  success "Python ${PYTHON_VERSION} is available"
+else
+  step "Installing python3..."
+  if command -v apt &>/dev/null; then
+    apt update -qq && apt install -y -qq python3 python3-venv python3-pip
+  elif command -v dnf &>/dev/null; then
+    dnf install -y -q python3 python3-pip
+  elif command -v pacman &>/dev/null; then
+    pacman -Sy --noconfirm python python-pip
+  else
+    error "python3 is required but could not be installed automatically."
+    echo "  Install it manually and re-run setup."
+    exit 1
+  fi
+  success "python3 installed"
+fi
+
+# Ensure python3-venv is available (Debian/Ubuntu need a separate package)
+if ! python3 -m venv --help &>/dev/null; then
+  step "Installing python3-venv..."
+  if command -v apt &>/dev/null; then
+    apt update -qq && apt install -y -qq python3-venv
+  else
+    warn "python3-venv may need to be installed manually."
+  fi
+fi
+
 # Check for sqlite3
 if command -v sqlite3 &>/dev/null; then
   success "sqlite3 is available"
@@ -309,28 +339,34 @@ EOF
 fi
 
 # ============================================================
-# 7. Initialize database
+# 7. Create Python virtual environment & install HomeStack
+# ============================================================
+step "Setting up Python environment..."
+VENV_DIR="${INSTALL_DIR}/.venv"
+if [[ -d "$VENV_DIR" ]]; then
+  success "Virtual environment already exists"
+else
+  python3 -m venv "$VENV_DIR"
+  success "Created virtual environment at ${VENV_DIR}"
+fi
+"${VENV_DIR}/bin/pip" install --quiet --upgrade pip
+"${VENV_DIR}/bin/pip" install --quiet "${INSTALL_DIR}"
+success "HomeStack Python package installed"
+
+# ============================================================
+# 8. Initialize database
 # ============================================================
 step "Initializing database..."
 export HOMESTACK_DIR="${INSTALL_DIR}"
-source "${INSTALL_DIR}/lib/yaml.sh"
-source "${INSTALL_DIR}/lib/core.sh"
-source "${INSTALL_DIR}/lib/db.sh"
-db_init
+"${VENV_DIR}/bin/python" -c "from homestack.db import db_init; db_init()"
 success "Database initialized at ${INSTALL_DIR}/homestack.db"
 
 # ============================================================
-# 8. Sync app catalog
+# 8b. Sync app catalog
 # ============================================================
 step "Syncing app catalog..."
-source "${INSTALL_DIR}/lib/secrets.sh"
-source "${INSTALL_DIR}/lib/registry.sh"
-if [[ -f "$CONFIG_FILE" ]]; then
-  # Load HOMESTACK_APPS_REPO from config if set
-  HOMESTACK_APPS_REPO=$(grep '^HOMESTACK_APPS_REPO=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- || echo "")
-  [[ -n "$HOMESTACK_APPS_REPO" ]] && APPS_REPO_URL="$HOMESTACK_APPS_REPO"
-fi
-registry_sync || warn "Could not sync catalog. Run 'homestack catalog update' later."
+"${VENV_DIR}/bin/python" -c "from homestack.registry import registry_sync; registry_sync()" \
+  || warn "Could not sync catalog. Run 'homestack catalog update' later."
 
 # ============================================================
 # 9. Set file permissions & ownership
@@ -343,9 +379,8 @@ git config --system --add safe.directory "${INSTALL_DIR}" 2>/dev/null || true
 git config --system --add safe.directory "${INSTALL_DIR}/.cache/homestack-apps" 2>/dev/null || true
 
 chmod +x "${INSTALL_DIR}/bin/homestack"
-find "${INSTALL_DIR}/lib" -name "*.sh" -exec chmod +x {} \;
 
-# Set ownership of the entire install directory
+# Set ownership of the entire install directory (excluding .venv internals)
 chown -R "${HOMESTACK_USER}:${HOMESTACK_GROUP}" "$INSTALL_DIR"
 
 # Group-writable so members of homestack group can operate

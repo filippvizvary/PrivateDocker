@@ -25,6 +25,14 @@ docker-compose.override.yml
 # BATS test framework (auto-installed by run_tests.sh)
 tests/.bats/
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
 # OS files
 .DS_Store
 Thumbs.db
