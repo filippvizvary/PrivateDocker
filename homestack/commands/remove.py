@@ -14,7 +14,8 @@ from homestack.yaml_parser import yaml_get, yaml_get_array
 
 @click.command("remove")
 @click.argument("app_name")
-def cmd_remove(app_name: str) -> None:
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation prompts.")
+def cmd_remove(app_name: str, yes: bool) -> None:
     """Stop and remove an installed app."""
 
     if not core.is_installed(app_name):
@@ -58,11 +59,11 @@ def cmd_remove(app_name: str) -> None:
         # Ask about AppData
         appdata_dirs = yaml_get_array(str(app_yaml), "appdata_dirs")
         if appdata_dirs:
-            click.echo()
-            if click.confirm(
-                click.style("  Delete app data in AppData/? This cannot be undone.", fg="red"),
+            delete_data = yes or click.confirm(
+                click.style("\n  Delete app data in AppData/? This cannot be undone.", fg="red"),
                 default=False,
-            ):
+            )
+            if delete_data:
                 for d in appdata_dirs:
                     if not core.validate_path_component(d):
                         continue
