@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tarfile
@@ -82,10 +83,12 @@ def _update_app(app_name: str) -> None:
                 _merge_config(app_name, install_dir, new_config)
 
             # Handle new secrets
+            interactive = os.isatty(sys.stdin.fileno())
             if (install_dir / "secrets.env").is_file():
                 secrets_mod.append_new_secrets(
                     str(install_dir / "app.yaml"),
                     str(install_dir / "secrets.env"),
+                    interactive=interactive,
                 )
 
             # Update DB

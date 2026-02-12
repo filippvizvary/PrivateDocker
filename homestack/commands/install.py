@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -15,8 +16,11 @@ from homestack.yaml_parser import yaml_get, yaml_get_array
 @click.command("install")
 @click.argument("app_name")
 @click.option("--skip-checks", is_flag=True, help="Skip post-install health checks")
-def cmd_install(app_name: str, skip_checks: bool) -> None:
+@click.option("--defaults", is_flag=True, help="Accept all defaults without prompting")
+def cmd_install(app_name: str, skip_checks: bool, defaults: bool) -> None:
     """Install an app from the catalog."""
+    # Auto-detect non-interactive sessions (piped stdin, ssh without tty)
+    interactive = not defaults and os.isatty(sys.stdin.fileno())
 
     # Check if already installed
     if core.is_installed(app_name):
@@ -97,7 +101,10 @@ def cmd_install(app_name: str, skip_checks: bool) -> None:
                 core.success("Media directories created")
 
             # Generate secrets
-            secrets.generate_secrets_file(str(app_yaml), str(install_dir / "secrets.env"))
+            secrets.generate_secrets_file(
+                str(app_yaml), str(install_dir / "secrets.env"),
+                interactive=interactive,
+            )
 
             # Track config defaults in database
             db.db_track_config_defaults(install_app, install_dir / "config.env")
