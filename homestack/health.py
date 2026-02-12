@@ -51,9 +51,9 @@ def run_health_checks(app_name: str, install_dir: str | Path) -> bool:
 
     all_ok = True
 
-    # Phase 2: HTTP checks
+    # Phase 2: HTTP checks (generous retries to cover slow app init)
     for hc in http_checks:
-        if not _run_http_check(app_name, hc):
+        if not _run_http_check(app_name, hc, retries=10, retry_delay=5):
             all_ok = False
 
     # Phase 3: Exec checks
