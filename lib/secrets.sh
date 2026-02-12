@@ -31,7 +31,7 @@ generate_secrets_file() {
 
   local entries=()
 
-  while IFS='|' read -r key prompt default_val generate length; do
+  while IFS='|' read -r key prompt default_val generate length <&3; do
     local value=""
 
     if [[ "$generate" == "true" ]]; then
@@ -40,23 +40,23 @@ generate_secrets_file() {
     elif [[ -n "$default_val" ]]; then
       echo -ne "  ${key}"
       echo -ne " [${default_val}]: "
-      read -r user_input
+      read -r user_input </dev/tty
       value="${user_input:-$default_val}"
     else
       echo -ne "  ${key}"
       [[ -n "$prompt" ]] && echo -ne " (${prompt})"
       echo -ne ": "
-      read -rs value
+      read -rs value </dev/tty
       echo ""
       while [[ -z "$value" ]]; do
         echo -ne "  ${RED}Required.${NC} ${key}: "
-        read -rs value
+        read -rs value </dev/tty
         echo ""
       done
     fi
 
     entries+=("${key}=\"${value}\"")
-  done <<< "$secrets_data"
+  done 3<<< "$secrets_data"
 
   echo ""
 
