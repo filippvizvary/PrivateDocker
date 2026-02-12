@@ -52,17 +52,19 @@ cmd_run() {
     fi
   fi
 
-  # Set up rollback on failure
-  local install_dir="${INSTALLED_DIR}/${app_name}"
+  # Set up rollback on failure (non-local so trap can access them)
+  _HS_INSTALL_DIR="${INSTALLED_DIR}/${app_name}"
+  _HS_INSTALL_APP="${app_name}"
   INSTALL_COMPLETE=false
+  local install_dir="$_HS_INSTALL_DIR"
 
   cleanup_on_failure() {
-    if [[ "$INSTALL_COMPLETE" != "true" ]]; then
+    if [[ "${INSTALL_COMPLETE:-false}" != "true" ]]; then
       warn "Installation failed, rolling back..."
-      compose_cmd "$install_dir" down 2>/dev/null || true
-      rm -rf "$install_dir" 2>/dev/null || true
-      db_remove_app "$app_name" 2>/dev/null || true
-      db_log_action "install" "$app_name" "Installation failed — rolled back" 1
+      compose_cmd "$_HS_INSTALL_DIR" down 2>/dev/null || true
+      rm -rf "$_HS_INSTALL_DIR" 2>/dev/null || true
+      db_remove_app "$_HS_INSTALL_APP" 2>/dev/null || true
+      db_log_action "install" "$_HS_INSTALL_APP" "Installation failed — rolled back" 1
       release_lock
     fi
   }
