@@ -116,7 +116,7 @@ APPYAML
 @test "readonly: catalog lists available apps" {
   run "${HOMESTACK_BIN}" catalog list
   assert_success
-  assert_output --partial "Test App"
+  assert_output --partial "testapp"
 }
 
 # --- Search ---
@@ -124,7 +124,7 @@ APPYAML
 @test "readonly: search finds matching app" {
   run "${HOMESTACK_BIN}" search test
   assert_success
-  assert_output --partial "Test App"
+  assert_output --partial "testapp"
 }
 
 @test "readonly: search with no results" {
