@@ -83,6 +83,10 @@ def cmd_install(app_name: str, skip_checks: bool) -> None:
             if appdata_dirs:
                 core.success("AppData directories created")
 
+            # Pre-create volume mount subdirectories from compose.yaml
+            # so Docker doesn't create them as root
+            _precreate_volumes(install_dir / "compose.yaml")
+
             # Create required Media directories
             media_dirs = yaml_get_array(str(app_yaml), "media_dirs")
             for d in media_dirs:
@@ -137,3 +141,50 @@ def cmd_install(app_name: str, skip_checks: bool) -> None:
             db.db_remove_app(install_app)
             db.db_log_action("install", install_app, "Installation failed — rolled back", 1)
             sys.exit(1)
+
+
+def _precreate_volumes(compose_path: Path) -> None:
+    """Pre-create host volume mount paths from compose.yaml.
+
+    Docker creates missing bind-mount directories as root, which causes
+    permission errors when the container runs as a non-root user.  By
+    creating them ahead of time, they inherit the current user's ownership.
+    """
+    from homestack.yaml_parser import load_yaml
+
+    data = load_yaml(str(compose_path))
+    if not data:
+        return
+
+    # Build variable map for substitution
+    var_map = {
+        "APPDATA": str(core.APPDATA_DIR),
+        "MEDIA": str(core.MEDIA_DIR),
+        "HOMESTACK_DIR": str(core.HOMESTACK_DIR),
+    }
+
+    services = data.get("services", {})
+    for _svc_name, svc in services.items():
+        volumes = svc.get("volumes", [])
+        for vol in volumes:
+            host_path: str | None = None
+            if isinstance(vol, str):
+                parts = vol.split(":")
+                if len(parts) >= 2:
+                    host_path = parts[0]
+            elif isinstance(vol, dict):
+                if vol.get("type") == "bind":
+                    host_path = vol.get("source")
+
+            if not host_path:
+                continue
+
+            # Expand ${VAR} references
+            for var, val in var_map.items():
+                host_path = host_path.replace(f"${{{var}}}", val)
+
+            if host_path.startswith("/") and not Path(host_path).exists():
+                try:
+                    Path(host_path).mkdir(parents=True, exist_ok=True)
+                except OSError:
+                    pass
