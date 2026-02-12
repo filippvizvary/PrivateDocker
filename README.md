@@ -127,11 +127,40 @@ Apps are managed in a separate community repository: [homestack-apps](https://gi
 - `sqlite3` (for state management)
 - `bash` 4.0+
 
+## Branching Strategy
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Stable, released code. Tagged with version numbers (e.g., `v0.3.0`). |
+| `dev` | Integration branch for the next release. All feature/fix branches merge here first. |
+| `feat/*` | New features (e.g., `feat/config-edit`, `feat/dependency-resolution`) |
+| `fix/*` | Bug fixes (e.g., `fix/lock-race-condition`) |
+| `test/*` | Test additions or refactors |
+
+### Workflow
+
+```
+feat/my-feature ──► dev ──► main (tagged release)
+fix/my-bugfix   ──► dev ──► main
+```
+
+1. Create a branch from `dev` using the appropriate prefix
+2. Make your changes and push
+3. Open a PR targeting `dev`
+4. Once `dev` is stable and tested, PR `dev` → `main` and tag a release
+
 ## Contributing
 
 To contribute **apps**, see the [homestack-apps](https://github.com/filippvizvary/homestack-apps) repository.
 
-To contribute to the **CLI**, open issues or PRs in this repository.
+To contribute to the **CLI**:
+
+1. Fork this repository
+2. Create a branch from `dev` (e.g., `feat/my-feature` or `fix/my-bugfix`)
+3. Make your changes and add tests where applicable
+4. Open a pull request targeting the `dev` branch
+
+Do **not** open PRs directly against `main` — all changes flow through `dev`.
 
 ## License
 

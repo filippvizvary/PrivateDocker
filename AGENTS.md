@@ -600,6 +600,38 @@ homestack backup jellyfin
 4. **No update notifications** — user must run `homestack update` manually
 5. **Container-owned files** — some apps create files as internal users; handled via Docker fallbacks
 
+## Branching Strategy
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Stable, released code. Tagged with version numbers (e.g., `v0.3.0`). |
+| `dev` | Integration branch for the next release. All feature/fix branches merge here first. |
+| `feat/*` | New features (e.g., `feat/config-edit`, `feat/dependency-resolution`) |
+| `fix/*` | Bug fixes (e.g., `fix/lock-race-condition`) |
+| `test/*` | Test additions or refactors |
+
+### Workflow
+
+```
+feat/my-feature ──► dev ──► main (tagged release)
+fix/my-bugfix   ──► dev ──► main
+```
+
+1. Create a branch from `dev` using the appropriate prefix
+2. Make changes, push, and open a PR targeting `dev`
+3. Once `dev` is stable and tested, PR `dev` → `main` and tag a release
+4. Never commit directly to `main` or `dev`
+
+### Cross-Repo Testing
+
+When a CLI change affects how apps are consumed (e.g., changes to `compose_cmd()` or `generate_secrets_file()`), test against a local apps repo:
+
+```bash
+export HOMESTACK_APPS_REPO=/home/user/homestack-apps
+homestack catalog update
+homestack install immich --defaults
+```
+
 ## Common Development Tasks
 
 ### Adding a new CLI command
