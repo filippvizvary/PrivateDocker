@@ -2,8 +2,14 @@
 # HomeStack — Self-hosted Docker management CLI
 set -euo pipefail
 
-# Resolve HomeStack root directory from this script's location
-HOMESTACK_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Resolve HomeStack root directory — follow symlinks to find real install path
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+HOMESTACK_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 export HOMESTACK_DIR
 
 # Load libraries
