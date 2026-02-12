@@ -8,6 +8,9 @@ APPS_DIR="${APPS_CACHE_DIR}/apps"
 
 # Sync app catalog from remote repository
 registry_sync() {
+  # Ensure git trusts the cache directory (owned by homestack user, run by group member)
+  git config --global --add safe.directory "$APPS_CACHE_DIR" 2>/dev/null || true
+
   if [[ -d "${APPS_CACHE_DIR}/.git" ]]; then
     step "Updating app catalog"
     if git -C "$APPS_CACHE_DIR" pull --quiet 2>/dev/null; then

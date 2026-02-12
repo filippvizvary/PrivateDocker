@@ -327,6 +327,12 @@ registry_sync || warn "Could not sync catalog. Run 'homestack catalog update' la
 # 9. Set file permissions & ownership
 # ============================================================
 step "Setting permissions and ownership..."
+
+# Mark homestack directories as safe for git (avoids dubious ownership errors)
+# This applies system-wide so all users in the homestack group can pull
+git config --system --add safe.directory "${INSTALL_DIR}" 2>/dev/null || true
+git config --system --add safe.directory "${INSTALL_DIR}/.cache/homestack-apps" 2>/dev/null || true
+
 chmod +x "${INSTALL_DIR}/bin/homestack"
 find "${INSTALL_DIR}/lib" -name "*.sh" -exec chmod +x {} \;
 
