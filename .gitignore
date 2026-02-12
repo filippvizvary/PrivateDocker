@@ -22,14 +22,12 @@ installed/*/secrets.env
 # Docker runtime
 docker-compose.override.yml
 
-# BATS test framework (auto-installed by run_tests.sh)
-tests/.bats/
-
 # Python
 .venv/
 __pycache__/
 *.pyc
 *.egg-info/
+homestack.egg-info/
 dist/
 build/
 
@@ -46,6 +44,3 @@ Thumbs.db
 
 # Logs
 *.log
-/Projects/
-/Scripts/
-/script.sh
