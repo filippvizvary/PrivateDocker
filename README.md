@@ -2,15 +2,27 @@
 
 A plug-and-play CLI for managing self-hosted Docker services.
 
+## Installation
+
+One command to install everything (Docker, Compose, SQLite, HomeStack):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/filippvizvary/homestack/main/setup.sh | sudo bash
+```
+
+Or clone and run manually:
+
+```bash
+git clone https://github.com/filippvizvary/homestack.git /homestack
+cd /homestack
+sudo ./setup.sh
+```
+
+The setup script automatically installs all dependencies (Docker, Docker Compose plugin, sqlite3, git) on Ubuntu, Debian, Fedora, CentOS, and RHEL.
+
 ## Quick Start
 
 ```bash
-# Install HomeStack (as root)
-sudo ./setup.sh
-
-# Sync app catalog
-homestack catalog update
-
 # Browse available apps
 homestack search
 
