@@ -195,12 +195,16 @@ def db_is_config_modified(app: str, key: str, current_value: str) -> bool:
     """Return True if the user has changed a config key from its default."""
     with _connect() as conn:
         row = conn.execute(
-            "SELECT value FROM config_overrides WHERE app = ? AND key = ?",
+            "SELECT value, is_user_modified FROM config_overrides WHERE app = ? AND key = ?",
             (app, key),
         ).fetchone()
     if row is None:
         # Key not tracked — treat as user-modified (don't overwrite)
         return True
+    # Check the explicit flag first (set by db_mark_config_modified)
+    if row[1]:
+        return True
+    # Fall back to value comparison for keys modified outside of homestack
     return current_value != row[0]
 
 

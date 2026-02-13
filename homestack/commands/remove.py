@@ -29,6 +29,21 @@ def cmd_remove(app_name: str, yes: bool) -> None:
 
         click.echo(click.style(f"Removing {display_name}...", fg="blue", bold=True))
 
+        # Warn if other installed apps depend on this one
+        dependents = []
+        for other_app in core.get_installed_apps():
+            if other_app == app_name:
+                continue
+            other_yaml = core.INSTALLED_DIR / other_app / "app.yaml"
+            if other_yaml.is_file():
+                other_deps = yaml_get_array(str(other_yaml), "depends_on")
+                if app_name in other_deps:
+                    dependents.append(other_app)
+        if dependents:
+            core.warn(f"These apps depend on {display_name}: {', '.join(dependents)}")
+            if not yes and not click.confirm("  Continue with removal?", default=False):
+                sys.exit(0)
+
         # Stop containers
         core.step("Stopping containers")
         try:
