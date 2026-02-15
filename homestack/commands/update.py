@@ -13,31 +13,61 @@ import click
 
 from homestack import core, db, secrets as secrets_mod
 from homestack.yaml_parser import yaml_get, yaml_get_array
-from homestack import registry
+from homestack import registry, health as health_mod
 
 
 @click.command("update")
 @click.argument("app_name", required=False, default=None)
-def cmd_update(app_name: str | None) -> None:
+@click.option("--skip-checks", is_flag=True, help="Skip post-update health checks")
+@click.option("--dry-run", is_flag=True, help="Show what would be updated without making changes")
+def cmd_update(app_name: str | None, skip_checks: bool, dry_run: bool) -> None:
     """Update all or a specific app."""
 
     with core.homestack_lock():
         if app_name:
-            _update_app(app_name)
+            _update_app(app_name, skip_checks=skip_checks, dry_run=dry_run)
         else:
             apps = core.get_installed_apps()
             if not apps:
                 core.warn("No apps installed.")
                 return
 
+            if dry_run:
+                click.echo(click.style("Update check (dry run)", fg="blue", bold=True))
+                click.echo()
+                registry.registry_sync()
+                any_updates = False
+                for app in apps:
+                    install_dir = core.INSTALLED_DIR / app
+                    app_yaml = install_dir / "app.yaml"
+                    if not app_yaml.is_file():
+                        continue
+                    display_name = yaml_get(str(app_yaml), "display_name")
+                    catalog_dir = registry.registry_find(app)
+                    if catalog_dir:
+                        installed_ver = yaml_get(str(app_yaml), "version")
+                        catalog_ver = yaml_get(str(Path(catalog_dir) / "app.yaml"), "version")
+                        if installed_ver != catalog_ver:
+                            click.echo(f"  {display_name}: {installed_ver} \u2192 {catalog_ver} "
+                                       + click.style("(update available)", fg="yellow"))
+                            any_updates = True
+                        else:
+                            click.echo(f"  {display_name}: {installed_ver} "
+                                       + click.style("(up to date)", fg="green"))
+                if not any_updates:
+                    click.echo()
+                    core.success("All apps are up to date")
+                click.echo()
+                return
+
             click.echo(click.style("Updating all apps...", fg="blue", bold=True))
             for app in apps:
-                _update_app(app)
+                _update_app(app, skip_checks=skip_checks)
             click.echo()
             core.success("All apps updated")
 
 
-def _update_app(app_name: str) -> None:
+def _update_app(app_name: str, skip_checks: bool = False, dry_run: bool = False) -> None:
     if not core.is_installed(app_name):
         core.error(f"'{app_name}' is not installed.")
         return
@@ -55,6 +85,11 @@ def _update_app(app_name: str) -> None:
         catalog_ver = yaml_get(str(catalog_path / "app.yaml"), "version")
 
         if installed_ver != catalog_ver:
+            if dry_run:
+                click.echo(f"  {display_name}: {installed_ver} \u2192 {catalog_ver} "
+                           + click.style("(update available)", fg="yellow"))
+                return
+
             core.step(f"Updating {display_name}: {installed_ver} → {catalog_ver}")
 
             # Auto-backup config before update
@@ -102,6 +137,15 @@ def _update_app(app_name: str) -> None:
     core.step(f"Recreating {display_name}")
     try:
         core.compose_cmd(install_dir, "up", "-d", "--remove-orphans")
+
+        # Post-update health checks
+        if not skip_checks:
+            checks_passed = health_mod.run_health_checks(app_name, install_dir)
+            if not checks_passed:
+                core.warn(f"Health checks failed for {display_name} after update")
+        else:
+            core.warn("Health checks skipped (--skip-checks)")
+
         core.success(f"{display_name} updated")
         db.db_log_action("update", app_name, "Updated successfully")
     except Exception:

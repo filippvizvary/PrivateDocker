@@ -168,7 +168,11 @@ def compose_cmd(app_dir: str | Path, *args: str, capture: bool = False,
         error(f"compose.yaml not found in {app_dir}")
         raise FileNotFoundError(compose_file)
 
-    env_flags: list[str] = ["--env-file", str(CONFIG_FILE)]
+    env_flags: list[str] = []
+    if CONFIG_FILE.is_file():
+        env_flags += ["--env-file", str(CONFIG_FILE)]
+    else:
+        warn(f"Global config not found: {CONFIG_FILE}")
     config_env = app_dir / "config.env"
     if config_env.is_file():
         env_flags += ["--env-file", str(config_env)]
