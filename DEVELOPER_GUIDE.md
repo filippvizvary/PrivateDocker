@@ -2,57 +2,80 @@
 
 > A complete reference for every file, function, class, and data flow in the HomeStack project.  
 > Written for new contributors who want to understand how the entire system works.
+>
+> **Reading order:** This guide follows the actual execution flow of the program — from
+> the moment you type `homestack` on the command line, through every module it touches,
+> all the way to the command that runs. Read it top-to-bottom and you'll learn the
+> codebase in the same order the code itself runs.
 
 ---
 
 ## Table of Contents
 
+**Part 1 — Overview**
+
 1. [Project Overview](#1-project-overview)
 2. [Repository Map](#2-repository-map)
 3. [How the Two Repos Work Together](#3-how-the-two-repos-work-together)
-4. [Entry Points and Bootstrapping](#4-entry-points-and-bootstrapping)
-5. [Core Module — `homestack/core.py`](#5-core-module)
-6. [Database Module — `homestack/db.py`](#6-database-module)
-7. [Registry Module — `homestack/registry.py`](#7-registry-module)
-8. [Secrets Module — `homestack/secrets.py`](#8-secrets-module)
-9. [YAML Parser Module — `homestack/yaml_parser.py`](#9-yaml-parser-module)
-10. [Health Check Module — `homestack/health.py`](#10-health-check-module)
-11. [CLI Entry Point — `homestack/cli.py`](#11-cli-entry-point)
-12. [Command Files — `homestack/commands/`](#12-command-files)
-    - [install.py](#121-installpy)
-    - [update.py](#122-updatepy)
-    - [remove.py](#123-removepy)
-    - [backup.py](#124-backuppy)
-    - [restore.py](#125-restorepy)
-    - [start.py / stop.py / restart.py](#126-startpy--stoppy--restartpy)
-    - [status.py](#127-statuspy)
-    - [list.py](#128-listpy)
-    - [search.py](#129-searchpy)
-    - [catalog.py](#1210-catalogpy)
-    - [logs.py](#1211-logspy)
-    - [exec.py](#1212-execpy)
-    - [config.py](#1213-configpy)
-    - [doctor.py](#1214-doctorpy)
-13. [Shell Wrapper — `bin/homestack`](#13-shell-wrapper)
-14. [Global Config — `config/homestack.env`](#14-global-config)
-15. [Build Configuration — `pyproject.toml`](#15-build-configuration)
-16. [Setup Script — `setup.sh`](#16-setup-script)
-17. [Test Suite](#17-test-suite)
-    - [conftest.py — Fixtures](#171-conftestpy--fixtures)
-    - [test_core.py](#172-test_corepy)
-    - [test_db.py](#173-test_dbpy)
-    - [test_yaml_parser.py](#174-test_yaml_parserpy)
-    - [test_secrets.py](#175-test_secretspy)
-    - [test_registry.py](#176-test_registrypy)
-    - [test_health.py](#177-test_healthpy)
-    - [test_update.py](#178-test_updatepy)
-    - [Test Fixtures (YAML files)](#179-test-fixtures-yaml-files)
+
+**Part 2 — The Execution Path (read in this order)**
+
+4. [Shell Wrapper — `bin/homestack`](#4-shell-wrapper) ← *you start here when you type `homestack`*
+5. [Package Marker — `homestack/__init__.py`](#5-package-marker) ← *Python discovers the package*
+6. [Module Entry — `homestack/__main__.py`](#6-module-entry) ← *`python -m homestack` lands here*
+7. [CLI Entry Point — `homestack/cli.py`](#7-cli-entry-point) ← *Click group, command dispatch, `db_init()`*
+8. [Core Module — `homestack/core.py`](#8-core-module) ← *foundation: paths, logging, locking, `compose_cmd`*
+9. [Database Module — `homestack/db.py`](#9-database-module) ← *SQLite state tracking, initialized on every run*
+10. [YAML Parser — `homestack/yaml_parser.py`](#10-yaml-parser) ← *reads app.yaml & test.yaml (no internal deps)*
+11. [Registry Module — `homestack/registry.py`](#11-registry-module) ← *Git catalog sync (needed before install)*
+12. [Secrets Module — `homestack/secrets.py`](#12-secrets-module) ← *generates secrets.env during install*
+13. [Health Check Module — `homestack/health.py`](#13-health-check-module) ← *post-install/update verification*
+
+**Part 3 — Commands (the things you actually run)**
+
+14. [Command Files — `homestack/commands/`](#14-command-files)
+    - [install.py](#141-installpy) ← *the most complex command; uses every module*
+    - [update.py](#142-updatepy)
+    - [remove.py](#143-removepy)
+    - [backup.py](#144-backuppy)
+    - [restore.py](#145-restorepy)
+    - [start.py / stop.py / restart.py](#146-startpy--stoppy--restartpy)
+    - [status.py](#147-statuspy)
+    - [list.py](#148-listpy)
+    - [search.py](#149-searchpy)
+    - [catalog.py](#1410-catalogpy)
+    - [logs.py](#1411-logspy)
+    - [exec.py](#1412-execpy)
+    - [doctor.py](#1413-doctorpy)
+
+**Part 4 — Supporting Files**
+
+15. [Global Config — `config/homestack.env`](#15-global-config)
+16. [Build Configuration — `pyproject.toml`](#16-build-configuration)
+17. [Setup Script — `setup.sh`](#17-setup-script)
+
+**Part 5 — Cross-Cutting Concepts**
+
 18. [Environment Variable Stacking](#18-environment-variable-stacking)
 19. [Locking and Concurrency](#19-locking-and-concurrency)
-20. [End-to-End Data Flows](#20-end-to-end-data-flows)
-21. [Error Handling Patterns](#21-error-handling-patterns)
-22. [Adding a New Command — Step by Step](#22-adding-a-new-command)
-23. [Adding a New Database Table — Step by Step](#23-adding-a-new-database-table)
+20. [Error Handling Patterns](#20-error-handling-patterns)
+
+**Part 6 — Testing**
+
+21. [Test Suite](#21-test-suite)
+    - [conftest.py — Fixtures](#211-conftestpy--fixtures)
+    - [test_core.py](#212-test_corepy)
+    - [test_db.py](#213-test_dbpy)
+    - [test_yaml_parser.py](#214-test_yaml_parserpy)
+    - [test_secrets.py](#215-test_secretspy)
+    - [test_registry.py](#216-test_registrypy)
+    - [Test Fixtures (YAML files)](#217-test-fixtures-yaml-files)
+
+**Part 7 — How-To Guides**
+
+22. [End-to-End Data Flows](#22-end-to-end-data-flows)
+23. [Adding a New Command — Step by Step](#23-adding-a-new-command)
+24. [Adding a New Database Table — Step by Step](#24-adding-a-new-database-table)
 
 ---
 
@@ -117,7 +140,6 @@ homestack/                          ← project root
 │       ├── catalog.py              ← `homestack catalog [update|list]`
 │       ├── logs.py                 ← `homestack logs <app>`
 │       ├── exec.py                 ← `homestack exec <app> <cmd>`
-│       ├── config.py               ← `homestack config <show|edit|reset> <app>`
 │       └── doctor.py               ← `homestack doctor`
 ├── config/
 │   └── homestack.env               ← global env vars (paths, TZ, UID/GID)
@@ -141,9 +163,7 @@ homestack/                          ← project root
         ├── test_db.py
         ├── test_yaml_parser.py
         ├── test_secrets.py
-        ├── test_registry.py
-        ├── test_health.py
-        └── test_update.py
+        └── test_registry.py
 ```
 
 ---
@@ -170,18 +190,44 @@ The CLI never modifies the catalog repo. The catalog is treated as read-only sou
 
 ---
 
-## 4. Entry Points and Bootstrapping
+## 4. Shell Wrapper
 
-### `homestack/__init__.py` (4 lines)
+**File:** `bin/homestack` (26 lines)
+
+**This is where everything starts.** When you type `homestack` on the command line, this Bash script runs first.
+
+A Bash script that:
+1. Resolves `HOMESTACK_DIR` by following symlinks to find the real install path
+2. Exports `HOMESTACK_DIR` as an environment variable
+3. Checks that `.venv/` exists
+4. Execs `${VENV}/bin/python -m homestack "$@"` — replacing the shell process
+
+**Symlink resolution:** Uses a loop with `readlink` to follow symlinks. This means you can symlink `bin/homestack` to `/usr/local/bin/homestack` and it will still find the correct `HOMESTACK_DIR`.
+
+**Why this matters:** The `HOMESTACK_DIR` environment variable set here is how every Python module discovers where the project lives. Without it, `core.py` falls back to resolving from the script's own file location.
+
+**Next stop →** Python loads the `homestack` package, starting with `__init__.py`.
+
+---
+
+## 5. Package Marker
+
+**File:** `homestack/__init__.py` (4 lines)
 
 ```python
 """HomeStack — Self-hosted Docker management CLI."""
 __version__ = "0.3.0"
 ```
 
-This is the package marker. The version string lives here and is the single source of truth. It's also referenced in `pyproject.toml`.
+This is the package marker. Python needs this file to recognize `homestack/` as an importable package. The version string lives here and is the single source of truth. It's also referenced in `pyproject.toml`.
 
-### `homestack/__main__.py` (5 lines)
+**Next stop →** The shell wrapper called `python -m homestack`, so Python looks for `__main__.py`.
+
+---
+
+## 6. Module Entry
+
+**File:** `homestack/__main__.py` (5 lines)
 
 ```python
 """Allow running as ``python -m homestack``."""
@@ -189,9 +235,19 @@ from homestack.cli import cli
 cli()
 ```
 
-This enables `python -m homestack` execution. It simply imports the Click group and calls it. The `bin/homestack` shell wrapper uses this entry point via the venv's Python.
+This enables `python -m homestack` execution. It simply imports the Click group from `cli.py` and calls it. That single `cli()` call is what makes Click parse your command-line arguments and dispatch to the right subcommand.
 
-### How a command reaches execution
+**Next stop →** `cli.py` — the Click command group that ties everything together.
+
+---
+
+## 7. CLI Entry Point
+
+**File:** `homestack/cli.py` (100 lines)
+
+Now we're in the real Python code. This file defines the Click command group and registers all subcommands. **Every single `homestack <something>` command is registered here.**
+
+### The full journey from terminal to code
 
 ```
 User types: homestack install jellyfin
@@ -216,15 +272,62 @@ homestack/cli.py → cli() Click group
 homestack/commands/install.py → cmd_install(app_name="jellyfin", ...)
 ```
 
+### 7.1 Main Group
+
+**`cli()` — `@click.group(invoke_without_command=True)`**
+
+The root command group. On every invocation:
+1. Calls `db.db_init()` to ensure the database schema exists *(this is why the DB module is next in our reading order)*
+2. If no subcommand specified, prints help
+
+### 7.2 Command Registration
+
+All commands are registered via `cli.add_command()`:
+
+```python
+from homestack.commands.install import cmd_install
+cli.add_command(cmd_install)
+# ... repeated for all commands
+```
+
+**16 registered commands:**
+
+| Command Name | Import Source | Lock? |
+|-------------|--------------|-------|
+| `install` | `commands/install.py` | Yes |
+| `update` | `commands/update.py` | Yes |
+| `remove` | `commands/remove.py` | Yes |
+| `backup` | `commands/backup.py` | Yes |
+| `restore` | `commands/restore.py` | Yes |
+| `start` | `commands/start.py` | Yes |
+| `stop` | `commands/stop.py` | Yes |
+| `restart` | `commands/restart.py` | Yes |
+| `status` | `commands/status.py` | No |
+| `list` | `commands/list.py` | No |
+| `search` | `commands/search.py` | No |
+| `catalog` | `commands/catalog.py` | No |
+| `logs` | `commands/logs.py` | No |
+| `exec` | `commands/exec.py` | No |
+| `doctor` | `commands/doctor.py` | No |
+| `log` | Inline in `cli.py` | No |
+
+### 7.3 Inline `log` Command
+
+**`cmd_log(limit: int)` — `@cli.command("log")`**
+
+Too small for its own file. Displays audit log entries with color coding. Takes a `limit` argument (default 20).
+
+**Now that we know cli.py calls `db_init()` and dispatches to commands, we need to understand the foundation modules that every command relies on. The most fundamental is `core.py`.**
+
 ---
 
-## 5. Core Module
+## 8. Core Module
 
-**File:** `homestack/core.py` (260 lines)
+**File:** `homestack/core.py` (248 lines)
 
-This is the foundational utility module. Every other module imports from here. It provides path constants, colored logging, file locking, Docker Compose execution, and app discovery.
+This is the foundational utility module — **every other module imports from here.** You need to understand this file before anything else makes sense. It provides path constants, colored logging, file locking, Docker Compose execution, and app discovery.
 
-### 5.1 Path Resolution
+### 8.1 Path Resolution
 
 The entire system's directory layout is derived from a single root: `HOMESTACK_DIR`.
 
@@ -258,7 +361,7 @@ Re-derives all path globals from the current `HOMESTACK_DIR` environment variabl
 
 **How it works internally:** It re-calls `_resolve_homestack_dir()` and reassigns every `global` path variable.
 
-### 5.2 Logging Helpers
+### 8.2 Logging Helpers
 
 Four functions provide consistent, colored terminal output matching the bash-version style:
 
@@ -273,7 +376,7 @@ All four use `click.echo()` with `click.style()` for ANSI color codes. `error()`
 
 **Important:** These are output-only. They do NOT call `sys.exit()`. The caller is responsible for exiting after `error()`.
 
-### 5.3 File Locking
+### 8.3 File Locking
 
 HomeStack uses `fcntl.flock()` for process-level mutual exclusion. This prevents two `homestack` processes from modifying the system simultaneously.
 
@@ -303,7 +406,7 @@ with core.homestack_lock():
 
 Wraps `acquire_lock()` in `__enter__` and `release_lock()` in `__exit__`. Used by every mutating command.
 
-### 5.4 Validation Helpers
+### 8.4 Validation Helpers
 
 **`validate_path_component(name: str) → bool`**
 
@@ -320,7 +423,7 @@ Uses `socket.connect_ex()` on `127.0.0.1:port`. Returns `True` if the port is fr
 
 Used by `install.py` before starting a new app to warn about port conflicts.
 
-### 5.5 Docker Compose Wrapper
+### 8.5 Docker Compose Wrapper
 
 **`compose_cmd(app_dir, *args, capture=False, check=True, quiet_err=False) → CompletedProcess`**
 
@@ -358,7 +461,7 @@ homestack.env  →  config.env  →  secrets.env
 
 This means a secret defined in `secrets.env` overrides anything in `config.env` or `homestack.env`.
 
-### 5.6 App Discovery
+### 8.6 App Discovery
 
 **`get_installed_apps() → list[str]`**
 
@@ -375,7 +478,7 @@ This ordering is used by `start all` (start in priority order) and `stop all` (r
 
 Simple check: returns `True` if `installed/<app_name>/` exists AND contains `app.yaml`.
 
-### 5.7 Network and Directory Helpers
+### 8.7 Network and Directory Helpers
 
 **`ensure_network(name: str) → None`**
 
@@ -391,13 +494,13 @@ Equivalent to `mkdir -p`. Creates the directory and all parents, no error if it 
 
 ---
 
-## 6. Database Module
+## 9. Database Module
 
 **File:** `homestack/db.py` (309 lines)
 
-Full SQLite abstraction layer. All database queries go through functions in this module. No other module touches SQLite directly (with one exception: `config.py`'s `reset` subcommand accesses `_connect()` for a specialized query).
+Remember how `cli.py` calls `db_init()` on every single invocation? This is the module that provides it. It's a full SQLite abstraction layer — **all database queries go through functions in this module.** No other module touches SQLite directly.
 
-### 6.1 Connection Management
+### 9.1 Connection Management
 
 **`_connect() → sqlite3.Connection`**
 
@@ -411,7 +514,7 @@ Every function opens its own connection via `_connect()` and uses `with conn:` c
 
 Returns the current UTC time formatted as `"YYYY-MM-DD HH:MM:SS"`. Used for all timestamp fields.
 
-### 6.2 Schema
+### 9.2 Schema
 
 **`db_init() → None`**
 
@@ -506,7 +609,7 @@ CREATE TABLE audit_log (
 
 Records every significant operation (install, update, remove, backup, restore, config change, etc.). Viewable via `homestack log`.
 
-### 6.3 App State Functions
+### 9.3 App State Functions
 
 **`db_set_installed(app: str, version: str) → None`**
 
@@ -540,7 +643,7 @@ Returns `True` if the app exists in the `apps` table. Note: this checks the *dat
 
 Returns the `installed_at` timestamp string.
 
-### 6.4 Config Tracking Functions
+### 9.4 Config Tracking Functions
 
 **`db_track_config_defaults(app: str, config_file: str | Path) → None`**
 
@@ -571,7 +674,7 @@ Sets `is_user_modified = 1` and stores the new value. Called by `config edit`.
 
 Returns list of `(key, value)` tuples for all keys where `is_user_modified = 1`. Used by `config show` to display modification status.
 
-### 6.5 Backup Tracking Functions
+### 9.5 Backup Tracking Functions
 
 **`db_record_backup(app: str, path: str, size: int, backup_type: str) → None`**
 
@@ -589,7 +692,7 @@ Like `db_list_backups` but for all apps. Also includes the `app` field.
 
 Deletes a backup record by ID. Called during backup rotation (doesn't delete the file — that's handled separately).
 
-### 6.6 Health Tracking Functions
+### 9.6 Health Tracking Functions
 
 **`db_update_health(app: str, container: str, status: str) → None`**
 
@@ -599,7 +702,7 @@ Deletes a backup record by ID. Called during backup rotation (doesn't delete the
 
 Returns all health records for an app. Each dict contains: `container`, `status`, `checked_at`.
 
-### 6.7 Audit Log Functions
+### 9.7 Audit Log Functions
 
 **`db_log_action(action: str, app: str = "", detail: str = "", exit_code: int = 0) → None`**
 
@@ -611,133 +714,15 @@ Returns the most recent `limit` audit log entries, newest first. Each dict conta
 
 ---
 
-## 7. Registry Module
-
-**File:** `homestack/registry.py` (175 lines)
-
-Manages the local clone of the `homestack-apps` catalog repository.
-
-### 7.1 Internal Helpers
-
-**`_repo_url() → str`**
-
-Resolves the catalog repo URL in this order:
-1. `HOMESTACK_APPS_REPO` environment variable
-2. Value from `config/homestack.env` (parsed manually)
-3. Default: `https://github.com/filippvizvary/homestack-apps.git`
-
-This allows overriding the catalog source for development (e.g., point to a local directory or fork).
-
-### 7.2 Sync Functions
-
-**`registry_sync() → None`**
-
-Synchronizes the local catalog clone with the remote repository.
-
-1. If `.cache/homestack-apps/` doesn't exist: runs `git clone <url>`
-2. If it exists: runs `git -C <dir> pull --ff-only`
-3. After sync, calls `_update_catalog_versions()` to update DB records
-
-Prints progress via `core.step()` and `core.success()`.
-
-**`_update_catalog_versions() → None`**
-
-After a catalog sync, iterates over all installed apps and checks if there's a matching entry in the catalog. If found, reads the catalog's `version` field from `app.yaml` and calls `db_set_catalog_version()` to store it. This makes version comparison available via `db_get_catalog_version()` without re-reading YAML files.
-
-**`registry_ensure() → None`**
-
-Ensures the catalog is available locally. If `APPS_DIR` doesn't exist, calls `registry_sync()`. Otherwise does nothing. This is called before any command that reads from the catalog (install, search, etc.).
-
-### 7.3 Query Functions
-
-**`registry_list() → list[dict]`**
-
-Returns metadata for all apps in the catalog as a list of dicts. Each dict contains: `name`, `display_name`, `description`, `category`, `port`, `version`.
-
-1. Iterates `APPS_DIR` subdirectories
-2. For each directory with `app.yaml`, reads it via `yaml.safe_load()`
-3. Builds and returns the list sorted by name
-
-**`registry_find(app_name: str) → str`**
-
-Finds an app by name and returns the absolute path to its catalog directory.
-
-1. First tries exact match: `APPS_DIR / app_name`
-2. If not found, tries case-insensitive fallback: lowercases both sides
-3. Returns empty string `""` if not found
-
-**`registry_search(query: str) → list[dict]`**
-
-Substring search across multiple fields. Lowercases the query and checks each app's `name`, `display_name`, `description`, and `category` for substring matches.
-
-Returns same dict format as `registry_list()`, but filtered.
-
----
-
-## 8. Secrets Module
-
-**File:** `homestack/secrets.py` (144 lines)
-
-Generates and manages `secrets.env` files containing passwords and credentials.
-
-### 8.1 Password Generation
-
-**`generate_password(length: int = 32) → str`**
-
-Generates a cryptographically random alphanumeric password.
-
-- Uses `secrets.choice()` (Python's cryptographic RNG)
-- Character set: `string.ascii_letters + string.digits` (a-z, A-Z, 0-9)
-- No special characters — intentional, to avoid shell escaping issues in env files
-
-### 8.2 Secrets File Creation
-
-**`generate_secrets_file(app_yaml: str, output: str, *, interactive: bool = True) → None`**
-
-Creates a new `secrets.env` file based on the `secrets:` block in `app.yaml`.
-
-**Parameters:**
-- `app_yaml`: Path to app.yaml
-- `output`: Path where secrets.env will be written
-- `interactive`: If `True`, prompts user for values. If `False`, uses defaults/generation.
-
-**For each secret defined in app.yaml, one of three things happens:**
-
-| Secret Config | Interactive Mode | Non-Interactive Mode |
-|---------------|------------------|----------------------|
-| `generate: true` | Auto-generates password, no prompt | Auto-generates password |
-| `default: "value"` | Prompts with default pre-filled | Uses default silently |
-| Neither | Prompts (empty default) | Writes `KEY=` (empty) |
-
-**File security:** After writing, sets permissions to `0o600` (owner read/write only).
-
-**Edge case handling:** If the `secrets:` block is empty or missing in app.yaml, creates an empty file with just a comment: `# No secrets for this app`.
-
-### 8.3 Secrets Update
-
-**`append_new_secrets(app_yaml: str, secrets_file: str, *, interactive: bool = True) → None`**
-
-Used during `homestack update` to add new secret keys without overwriting existing ones.
-
-1. Reads existing secrets.env into a dict
-2. Parses app.yaml for secret definitions
-3. For each secret key NOT already in the file:
-   - If `generate: true`: auto-generates and appends
-   - If `default`: uses default (or prompts in interactive mode)
-4. Writes back the entire file
-5. Resets permissions to `0o600`
-
-**Critical invariant:** Existing keys are NEVER modified. Only new keys are added. This prevents updates from resetting user-configured passwords.
-
----
-
-## 9. YAML Parser Module
+## 10. YAML Parser
 
 **File:** `homestack/yaml_parser.py` (149 lines)
 
+**Why read this next?** This is the simplest module in the project — it has **zero internal dependencies** (only uses PyYAML and the standard library). Every other module that reads `app.yaml` or `test.yaml` goes through here. Understanding this module first makes all the others easier to follow.
+
 Provides typed parsing of YAML configuration files using PyYAML and Python dataclasses.
 
-### 9.1 Dataclasses
+### 10.1 Dataclasses
 
 **`SecretDef`** — Represents one entry in the `secrets:` block of app.yaml
 
@@ -767,7 +752,7 @@ Provides typed parsing of YAML configuration files using PyYAML and Python datac
 | `command` | `str` | `""` | Shell command to execute |
 | `expected_output` | `str` | `""` | Substring to find in stdout |
 
-### 9.2 Loading Functions
+### 10.2 Loading Functions
 
 **`load_yaml(filepath: str) → dict`**
 
@@ -783,7 +768,7 @@ Gets a single top-level scalar value from a YAML file and returns it as a string
 
 Gets a top-level list value from a YAML file. Returns `[]` if the key doesn't exist or the value is not a list. Each element is converted to string.
 
-### 9.3 Parsing Functions
+### 10.3 Parsing Functions
 
 **`parse_secrets(filepath: str) → list[SecretDef]`**
 
@@ -803,13 +788,133 @@ Reads `startup_time:` from test.yaml. Defaults to `30` if not specified. This is
 
 ---
 
-## 10. Health Check Module
+## 11. Registry Module
+
+**File:** `homestack/registry.py` (175 lines)
+
+**Why read this next?** Before you can install an app, you need the catalog. This module manages the local Git clone of the `homestack-apps` repository. It's the bridge between the two repos.
+
+### 11.1 Internal Helpers
+
+**`_repo_url() → str`**
+
+Resolves the catalog repo URL in this order:
+1. `HOMESTACK_APPS_REPO` environment variable
+2. Value from `config/homestack.env` (parsed manually)
+3. Default: `https://github.com/filippvizvary/homestack-apps.git`
+
+This allows overriding the catalog source for development (e.g., point to a local directory or fork).
+
+### 11.2 Sync Functions
+
+**`registry_sync() → None`**
+
+Synchronizes the local catalog clone with the remote repository.
+
+1. If `.cache/homestack-apps/` doesn't exist: runs `git clone <url>`
+2. If it exists: runs `git -C <dir> pull --ff-only`
+3. After sync, calls `_update_catalog_versions()` to update DB records
+
+Prints progress via `core.step()` and `core.success()`.
+
+**`_update_catalog_versions() → None`**
+
+After a catalog sync, iterates over all installed apps and checks if there's a matching entry in the catalog. If found, reads the catalog's `version` field from `app.yaml` and calls `db_set_catalog_version()` to store it. This makes version comparison available via `db_get_catalog_version()` without re-reading YAML files.
+
+**`registry_ensure() → None`**
+
+Ensures the catalog is available locally. If `APPS_DIR` doesn't exist, calls `registry_sync()`. Otherwise does nothing. This is called before any command that reads from the catalog (install, search, etc.).
+
+### 11.3 Query Functions
+
+**`registry_list() → list[dict]`**
+
+Returns metadata for all apps in the catalog as a list of dicts. Each dict contains: `name`, `display_name`, `description`, `category`, `port`, `version`.
+
+1. Iterates `APPS_DIR` subdirectories
+2. For each directory with `app.yaml`, reads it via `yaml.safe_load()`
+3. Builds and returns the list sorted by name
+
+**`registry_find(app_name: str) → str`**
+
+Finds an app by name and returns the absolute path to its catalog directory.
+
+1. First tries exact match: `APPS_DIR / app_name`
+2. If not found, tries case-insensitive fallback: lowercases both sides
+3. Returns empty string `""` if not found
+
+**`registry_search(query: str) → list[dict]`**
+
+Substring search across multiple fields. Lowercases the query and checks each app's `name`, `display_name`, `description`, and `category` for substring matches.
+
+Returns same dict format as `registry_list()`, but filtered.
+
+---
+
+## 12. Secrets Module
+
+**File:** `homestack/secrets.py` (144 lines)
+
+**Why read this next?** During installation, after the catalog files are copied, secrets need to be generated. This module handles that. It uses `yaml_parser.py` to read secret definitions from `app.yaml`.
+
+### 12.1 Password Generation
+
+**`generate_password(length: int = 32) → str`**
+
+Generates a cryptographically random alphanumeric password.
+
+- Uses `secrets.choice()` (Python's cryptographic RNG)
+- Character set: `string.ascii_letters + string.digits` (a-z, A-Z, 0-9)
+- No special characters — intentional, to avoid shell escaping issues in env files
+
+### 12.2 Secrets File Creation
+
+**`generate_secrets_file(app_yaml: str, output: str, *, interactive: bool = True) → None`**
+
+Creates a new `secrets.env` file based on the `secrets:` block in `app.yaml`.
+
+**Parameters:**
+- `app_yaml`: Path to app.yaml
+- `output`: Path where secrets.env will be written
+- `interactive`: If `True`, prompts user for values. If `False`, uses defaults/generation.
+
+**For each secret defined in app.yaml, one of three things happens:**
+
+| Secret Config | Interactive Mode | Non-Interactive Mode |
+|---------------|------------------|----------------------|
+| `generate: true` | Auto-generates password, no prompt | Auto-generates password |
+| `default: "value"` | Prompts with default pre-filled | Uses default silently |
+| Neither | Prompts (empty default) | Writes `KEY=` (empty) |
+
+**File security:** After writing, sets permissions to `0o600` (owner read/write only).
+
+**Edge case handling:** If the `secrets:` block is empty or missing in app.yaml, creates an empty file with just a comment: `# No secrets for this app`.
+
+### 12.3 Secrets Update
+
+**`append_new_secrets(app_yaml: str, secrets_file: str, *, interactive: bool = True) → None`**
+
+Used during `homestack update` to add new secret keys without overwriting existing ones.
+
+1. Reads existing secrets.env into a dict
+2. Parses app.yaml for secret definitions
+3. For each secret key NOT already in the file:
+   - If `generate: true`: auto-generates and appends
+   - If `default`: uses default (or prompts in interactive mode)
+4. Writes back the entire file
+5. Resets permissions to `0o600`
+
+**Critical invariant:** Existing keys are NEVER modified. Only new keys are added. This prevents updates from resetting user-configured passwords.
+
+---
+
+## 13. Health Check Module
 
 **File:** `homestack/health.py` (181 lines)
 
-Runs automated health checks after install and update operations. Uses Python's `urllib.request` for HTTP checks and `compose_cmd` for exec checks.
+**Why read this last (among the library modules)?** Health checks run at the very end of install and update — after the catalog is synced, files are copied, secrets are generated, and containers are started. This module ties together `yaml_parser.py` (to read test.yaml) and `core.compose_cmd()` (to run exec checks).
 
-### 10.1 Orchestrator
+### 13.1 Orchestrator
 
 **`run_health_checks(app_name: str, install_dir: Path) → bool`**
 
@@ -825,7 +930,7 @@ Main entry point. Returns `True` if all checks pass, `False` if any fail.
 - If `test.yaml` doesn't exist in `install_dir` → returns `True` (no checks to run)
 - If both `health_checks` and `exec_checks` are empty → returns `True`
 
-### 10.2 Container Wait
+### 13.2 Container Wait
 
 **`_wait_for_healthy(install_dir: Path, timeout: int) → bool`**
 
@@ -837,7 +942,7 @@ Returns `True` if all containers came up, `False` on timeout.
 
 **Implementation detail:** Runs `compose_cmd(install_dir, "ps", "--format", "{{.Status}}", capture=True)` and checks each line for `"up"` (case-insensitive).
 
-### 10.3 HTTP Checks
+### 13.3 HTTP Checks
 
 **`_run_http_check(app_name: str, hc: HealthCheck, retries: int = 5, retry_delay: int = 3) → bool`**
 
@@ -858,7 +963,7 @@ Performs an HTTP request against the health check URL and validates the response
 
 **Error handling:** Catches `urllib.error.HTTPError`, `urllib.error.URLError`, `OSError`, and generic `Exception`. All failures are logged via `core.warn()`.
 
-### 10.4 Exec Checks
+### 13.4 Exec Checks
 
 **`_run_exec_check(app_name: str, install_dir: Path, ec: ExecCheck) → bool`**
 
@@ -870,70 +975,11 @@ Runs a command inside a container and validates the output.
 
 Returns `True` if the check passes.
 
----
-
-## 11. CLI Entry Point
-
-**File:** `homestack/cli.py` (100 lines)
-
-Defines the Click command group and registers all subcommands.
-
-### 11.1 Main Group
-
-**`cli()` — `@click.group(invoke_without_command=True)`**
-
-The root command group. On every invocation:
-1. Calls `db.db_init()` to ensure the database schema exists
-2. If no subcommand specified, prints help
-
-### 11.2 Command Registration
-
-All commands are registered via `cli.add_command()`:
-
-```python
-from homestack.commands.install import cmd_install
-cli.add_command(cmd_install)
-# ... repeated for all commands
-```
-
-**17 registered commands:**
-
-| Command Name | Import Source | Lock? |
-|-------------|--------------|-------|
-| `install` | `commands/install.py` | Yes |
-| `update` | `commands/update.py` | Yes |
-| `remove` | `commands/remove.py` | Yes |
-| `backup` | `commands/backup.py` | Yes |
-| `restore` | `commands/restore.py` | Yes |
-| `start` | `commands/start.py` | Yes |
-| `stop` | `commands/stop.py` | Yes |
-| `restart` | `commands/restart.py` | Yes |
-| `config` | `commands/config.py` | Partial (edit/reset yes, show no) |
-| `status` | `commands/status.py` | No |
-| `list` | `commands/list.py` | No |
-| `search` | `commands/search.py` | No |
-| `catalog` | `commands/catalog.py` | No |
-| `logs` | `commands/logs.py` | No |
-| `exec` | `commands/exec.py` | No |
-| `doctor` | `commands/doctor.py` | No |
-| `log` | Inline in `cli.py` | No |
-
-### 11.3 Inline `log` Command
-
-**`cmd_log(limit: int)` — `@cli.command("log")`**
-
-Displays audit log entries with color-coded actions:
-- `install`, `restore`: green
-- `update`, `config`: blue
-- `remove`: red
-- `backup`: yellow
-- Everything else: white
-
-Takes `--limit` / `-n` option (default 20).
+**Now that you understand all the library modules, you're ready for the commands — the actual things users run. Each command file pulls together the modules above to accomplish its task.**
 
 ---
 
-## 12. Command Files
+## 14. Command Files
 
 Each file in `homestack/commands/` exports exactly one Click command (or group). Every command follows the same pattern:
 1. Import `core`, `db`, and any needed parsers
@@ -944,7 +990,9 @@ Each file in `homestack/commands/` exports exactly one Click command (or group).
 6. Log to audit log
 7. Print success/failure
 
-### 12.1 `install.py`
+**We start with `install.py` because it's the most complex command and uses every single module** — understanding it means you understand how the whole system fits together.
+
+### 14.1 `install.py`
 
 **File:** `homestack/commands/install.py` (220 lines)
 
@@ -1001,7 +1049,7 @@ Solves the "Docker creates directories as root" problem. When Docker encounters 
 
 This way, the directories are owned by the user running `homestack`, not root.
 
-### 12.2 `update.py`
+### 14.2 `update.py`
 
 **File:** `homestack/commands/update.py` (197 lines)
 
@@ -1049,7 +1097,7 @@ The smart config merge algorithm:
 
 **Result:** New keys from the catalog are added. Updated defaults are applied. User customizations are preserved.
 
-### 12.3 `remove.py`
+### 14.3 `remove.py`
 
 **File:** `homestack/commands/remove.py` (115 lines)
 
@@ -1080,7 +1128,7 @@ The smart config merge algorithm:
 
 **Reverse dependency check:** Scans all installed apps' `app.yaml` files for `depends_on` arrays that include the app being removed. If found, warns the user but doesn't block removal.
 
-### 12.4 `backup.py`
+### 14.4 `backup.py`
 
 **File:** `homestack/commands/backup.py` (165 lines)
 
@@ -1123,7 +1171,7 @@ Keeps only the `keep` most recent backups of each type:
 
 The constant `KEEP_LAST = 5` is defined at module level.
 
-### 12.5 `restore.py`
+### 14.5 `restore.py`
 
 **File:** `homestack/commands/restore.py` (170 lines)
 
@@ -1159,7 +1207,7 @@ The constant `KEEP_LAST = 5` is defined at module level.
 
 Converts bytes to human-readable format: `"1.5 MB"`, `"32.0 KB"`, etc.
 
-### 12.6 `start.py` / `stop.py` / `restart.py`
+### 14.6 `start.py` / `stop.py` / `restart.py`
 
 **Files:** 53 / 51 / 69 lines respectively
 
@@ -1195,7 +1243,7 @@ Converts bytes to human-readable format: `"1.5 MB"`, `"32.0 KB"`, etc.
 
 **Why `check=False` and `quiet_err=True` on stop/down?** Because `docker compose down` can fail if containers are already stopped. This shouldn't be treated as an error.
 
-### 12.7 `status.py`
+### 14.7 `status.py`
 
 **File:** `homestack/commands/status.py` (82 lines)
 
@@ -1218,7 +1266,7 @@ Converts bytes to human-readable format: `"1.5 MB"`, `"32.0 KB"`, etc.
      - other → white
    - Updates health table in DB via `db_update_health()`
 
-### 12.8 `list.py`
+### 14.8 `list.py`
 
 **File:** `homestack/commands/list.py` (43 lines)
 
@@ -1228,7 +1276,7 @@ Prints a formatted table of all installed apps with columns: NAME, CATEGORY, POR
 
 Gets app metadata from each app's `app.yaml` and install date from `db_get_install_date()`.
 
-### 12.9 `search.py`
+### 14.9 `search.py`
 
 **File:** `homestack/commands/search.py` (47 lines)
 
@@ -1238,7 +1286,7 @@ If `query` is provided, calls `registry_search(query)`. Otherwise calls `registr
 
 Prints a table with: NAME, CATEGORY, PORT, DESCRIPTION. Apps that are already installed get a green ✓ marker.
 
-### 12.10 `catalog.py`
+### 14.10 `catalog.py`
 
 **File:** `homestack/commands/catalog.py` (57 lines)
 
@@ -1251,7 +1299,7 @@ This is a Click **group** (not a simple command), with two subcommands:
 
 If invoked without a subcommand (`homestack catalog`), defaults to `update`.
 
-### 12.11 `logs.py`
+### 14.11 `logs.py`
 
 **File:** `homestack/commands/logs.py` (36 lines)
 
@@ -1265,7 +1313,7 @@ Passes through to `compose_cmd(install_dir, "logs", "--tail", str(tail), ["--fol
 
 Handles `KeyboardInterrupt` gracefully for follow mode (user presses Ctrl+C to stop).
 
-### 12.12 `exec.py`
+### 14.12 `exec.py`
 
 **File:** `homestack/commands/exec.py` (50 lines)
 
@@ -1279,48 +1327,7 @@ Runs an arbitrary command inside a container.
 
 **Exit code pass-through:** `sys.exit(result.returncode)` — the CLI exits with whatever code the container command returned.
 
-### 12.13 `config.py`
-
-**File:** `homestack/commands/config.py` (191 lines)
-
-**Command group:** `homestack config <subcommand>`
-
-Three subcommands:
-
-#### `config show <app_name>`
-
-Displays all config.env keys with their values and modification status:
-- `default` (green) — value matches catalog default
-- `modified` (yellow) — user has changed this value
-
-No lock required.
-
-#### `config edit <app_name> <key> <value>`
-
-Sets a config key to a new value:
-1. Acquires lock
-2. Reads config.env, finds the key
-3. Replaces the value in-place
-4. Writes the file back
-5. Marks the key as user-modified in DB
-6. Asks whether to restart the app to apply changes
-7. If yes, runs `compose_cmd("up", "-d", "--remove-orphans")`
-8. Logs to audit
-
-If the key doesn't exist, prints all available keys and exits.
-
-#### `config reset <app_name> <key>`
-
-Resets a config key to its catalog default:
-1. Acquires lock
-2. Queries DB for the stored default value
-3. Updates config.env with the default
-4. Resets `is_user_modified` to 0 in DB
-5. Logs to audit
-
-**Implementation note:** This command directly accesses `db._connect()` for specialized queries, bypassing the public API. This is the only place outside `db.py` that does this.
-
-### 12.14 `doctor.py`
+### 14.13 `doctor.py`
 
 **File:** `homestack/commands/doctor.py` (108 lines)
 
@@ -1349,21 +1356,7 @@ Prints a single check line with green ✓ or red ✗. Returns the `ok` value for
 
 ---
 
-## 13. Shell Wrapper
-
-**File:** `bin/homestack` (26 lines)
-
-A Bash script that:
-1. Resolves `HOMESTACK_DIR` by following symlinks to find the real install path
-2. Exports `HOMESTACK_DIR` as an environment variable
-3. Checks that `.venv/` exists
-4. Execs `${VENV}/bin/python -m homestack "$@"` — replacing the shell process
-
-**Symlink resolution:** Uses a loop with `readlink` to follow symlinks. This means you can symlink `bin/homestack` to `/usr/local/bin/homestack` and it will still find the correct `HOMESTACK_DIR`.
-
----
-
-## 14. Global Config
+## 15. Global Config
 
 **File:** `config/homestack.env`
 
@@ -1387,7 +1380,7 @@ These variables are available in every compose.yaml via `${APPDATA}`, `${MEDIA}`
 
 ---
 
-## 15. Build Configuration
+## 16. Build Configuration
 
 **File:** `pyproject.toml` (31 lines)
 
@@ -1421,7 +1414,7 @@ dev = ["pytest>=7.0"]
 
 ---
 
-## 16. Setup Script
+## 17. Setup Script
 
 **File:** `setup.sh` (~370 lines)
 
@@ -1443,11 +1436,133 @@ Interactive first-run installer. Only used once to bootstrap a new HomeStack ins
 
 ---
 
-## 17. Test Suite
+## 18. Environment Variable Stacking
 
-90 tests in 7 test files, using pytest. All tests use temporary directories and mock databases — no Docker or network access required for unit tests.
+This is one of the most important cross-cutting concepts in HomeStack — understanding it helps you make sense of how `compose_cmd()` works and why there are three separate env files. When `compose_cmd()` runs Docker Compose, it passes up to three `--env-file` flags. Docker Compose processes them in order, with later files overriding earlier ones.
 
-### 17.1 `conftest.py` — Fixtures
+```
+Layer 1: config/homestack.env      ← APPDATA, MEDIA, TZ, PUID, PGID, DOCKER_USER
+Layer 2: installed/<app>/config.env ← APP_IMAGE, APP_PORT, etc.
+Layer 3: installed/<app>/secrets.env ← DB_PASSWORD, API_KEY, etc.
+```
+
+**Example of how this works in practice:**
+
+`homestack.env` defines:
+```env
+APPDATA=/homestack/AppData
+TZ=America/New_York
+PUID=1000
+```
+
+`installed/jellyfin/config.env` defines:
+```env
+JELLYFIN_SERVER=jellyfin/jellyfin:10.11.5
+```
+
+`installed/jellyfin/secrets.env` is empty (Jellyfin has no secrets).
+
+The compose.yaml for Jellyfin uses:
+```yaml
+services:
+  jellyfin:
+    image: ${JELLYFIN_SERVER}
+    volumes:
+      - ${APPDATA}/jellyfin/config:/config
+    environment:
+      TZ: ${TZ}
+      PUID: ${PUID}
+```
+
+Docker Compose resolves all `${VAR}` references from the stacked env files.
+
+---
+
+## 19. Locking and Concurrency
+
+HomeStack uses file-based locking via `fcntl.flock()` to prevent concurrent modifications. You've already seen the lock functions in [section 8.3](#83-file-locking) — this section explains the overall strategy.
+
+**When locks are acquired:**
+- All mutating commands (install, update, remove, backup, restore, start, stop, restart)
+
+**When locks are NOT acquired:**
+- Read-only commands (status, list, search, catalog, logs, exec, doctor, log)
+
+**Lock behavior:**
+- Non-blocking (`LOCK_NB`) — if another process holds the lock, immediately exit with error
+- User gets message: "Another homestack process is running. If this is wrong, remove .lock"
+- Lock file is `.lock` in `HOMESTACK_DIR`
+
+**SQLite concurrency:**
+- WAL mode provides concurrent reads with one writer
+- Each function opens its own short-lived connection
+- No long-lived transactions
+
+---
+
+## 20. Error Handling Patterns
+
+### Pattern 1: `core.error()` + `sys.exit(1)`
+
+Used for unrecoverable user errors:
+```python
+if not core.is_installed(app_name):
+    core.error(f"'{app_name}' is not installed.")
+    sys.exit(1)
+```
+
+### Pattern 2: `raise SystemExit(1)`
+
+Click-friendly variant (same behavior as `sys.exit(1)`):
+```python
+if not core.is_installed(app_name):
+    core.error(f"'{app_name}' is not installed.")
+    raise SystemExit(1)
+```
+
+### Pattern 3: Rollback on exception
+
+Used in install.py — wraps the entire install in try/except:
+```python
+try:
+    # ... install steps ...
+except Exception:
+    core.warn("Installation failed, rolling back...")
+    compose_cmd(install_dir, "down", check=False)
+    shutil.rmtree(install_dir, ignore_errors=True)
+    db.db_remove_app(install_app)
+    sys.exit(1)
+```
+
+### Pattern 4: Silent audit logging
+
+`db_log_action()` is wrapped in try/except that passes silently. Logging failures must never crash the CLI.
+
+### Pattern 5: Docker fallback for permissions
+
+When `shutil.rmtree()` fails with `PermissionError` on container-owned files:
+```python
+try:
+    shutil.rmtree(target)
+except PermissionError:
+    subprocess.run(["docker", "run", "--rm", "-v", f"{target}:/cleanup",
+                     "busybox", "rm", "-rf", "/cleanup"])
+```
+
+### Pattern 6: `check=False` + `quiet_err=True`
+
+For Docker commands that can legitimately fail (e.g., `docker compose down` when already stopped):
+```python
+core.compose_cmd(install_dir, "down", check=False, quiet_err=True)
+```
+
+---
+
+## 21. Test Suite
+
+72 tests in 5 test files, using pytest. All tests use temporary directories and mock databases — no Docker or network access required for unit tests.
+
+### 21.1 `conftest.py` — Fixtures
 
 **File:** `tests/conftest.py` (174 lines)
 
@@ -1519,7 +1634,7 @@ Simulates an app installation without Docker:
 
 This is used in tests that need an "installed" app without running Docker.
 
-### 17.2 `test_core.py`
+### 21.2 `test_core.py`
 
 **File:** `tests/unit/test_core.py` (68 lines)
 
@@ -1551,7 +1666,7 @@ This is used in tests that need an "installed" app without running Docker.
 **`TestEnsureDir`** (1 test)
 - `test_creates_directory`: Nested directory is created
 
-### 17.3 `test_db.py`
+### 21.3 `test_db.py`
 
 **File:** `tests/unit/test_db.py` (137 lines)
 
@@ -1578,7 +1693,7 @@ This is used in tests that need an "installed" app without running Docker.
 **`TestAuditLog`** (2 tests)
 - Log and retrieve, never crashes on unusual characters
 
-### 17.4 `test_yaml_parser.py`
+### 21.4 `test_yaml_parser.py`
 
 **File:** `tests/unit/test_yaml_parser.py` (109 lines)
 
@@ -1596,7 +1711,7 @@ This is used in tests that need an "installed" app without running Docker.
 **`TestLoadYaml`** (2 tests)
 - Returns dict, missing file returns empty dict
 
-### 17.5 `test_secrets.py`
+### 21.5 `test_secrets.py`
 
 **File:** `tests/unit/test_secrets.py` (106 lines)
 
@@ -1611,7 +1726,7 @@ This is used in tests that need an "installed" app without running Docker.
 **`TestAppendNewSecrets`** (2 tests)
 - Adds missing keys, doesn't overwrite existing keys
 
-### 17.6 `test_registry.py`
+### 21.6 `test_registry.py`
 
 **File:** `tests/unit/test_registry.py` (72 lines)
 
@@ -1626,43 +1741,7 @@ This is used in tests that need an "installed" app without running Docker.
 **`TestRegistrySearch`** (2 tests)
 - Search by name substring, no results for gibberish
 
-### 17.7 `test_health.py`
-
-**File:** `tests/unit/test_health.py` (204 lines)
-
-3 test classes, 10 tests total:
-
-**`TestRunHealthChecks`** (2 tests)
-- Missing test.yaml returns True (skip), empty checks returns True
-
-**`TestRunHttpCheck`** (6 tests) — **Uses real HTTP servers:**
-- Creates `http.server.HTTPServer` on random ports
-- Spawns server in background thread
-- Tests: successful check, wrong status, body_contains pass/fail, connection refused, retry behavior
-
-**`TestRunExecCheck`** (4 tests) — **Uses mocked compose_cmd:**
-- Uses `@patch("homestack.health.core.compose_cmd")`
-- Tests: successful exec, non-zero exit, missing expected output, no expected output
-
-### 17.8 `test_update.py`
-
-**File:** `tests/unit/test_update.py` (109 lines)
-
-3 test classes, 6 tests total:
-
-**`TestMergeConfig`** (3 tests)
-- Preserves user-modified values during merge
-- Adds new keys from catalog
-- Copies fresh config when no existing config exists
-
-**`TestComposeCmd`** (1 test)
-- Missing config file doesn't crash (resilience test)
-
-**`TestBackupIntegrity`** (2 tests)
-- Corrupted archive is detected (raises TarError)
-- Valid archive passes integrity check
-
-### 17.9 Test Fixtures (YAML files)
+### 21.7 Test Fixtures (YAML files)
 
 **`tests/fixtures/sample.yaml`** — Full-featured app definition:
 - 3 secrets (generated password, default value, generated API key)
@@ -1679,73 +1758,7 @@ This is used in tests that need an "installed" app without running Docker.
 
 ---
 
-## 18. Environment Variable Stacking
-
-This is one of the most important concepts in HomeStack. When `compose_cmd()` runs Docker Compose, it passes up to three `--env-file` flags. Docker Compose processes them in order, with later files overriding earlier ones.
-
-```
-Layer 1: config/homestack.env      ← APPDATA, MEDIA, TZ, PUID, PGID, DOCKER_USER
-Layer 2: installed/<app>/config.env ← APP_IMAGE, APP_PORT, etc.
-Layer 3: installed/<app>/secrets.env ← DB_PASSWORD, API_KEY, etc.
-```
-
-**Example of how this works in practice:**
-
-`homestack.env` defines:
-```env
-APPDATA=/homestack/AppData
-TZ=America/New_York
-PUID=1000
-```
-
-`installed/jellyfin/config.env` defines:
-```env
-JELLYFIN_SERVER=jellyfin/jellyfin:10.11.5
-```
-
-`installed/jellyfin/secrets.env` is empty (Jellyfin has no secrets).
-
-The compose.yaml for Jellyfin uses:
-```yaml
-services:
-  jellyfin:
-    image: ${JELLYFIN_SERVER}
-    volumes:
-      - ${APPDATA}/jellyfin/config:/config
-    environment:
-      TZ: ${TZ}
-      PUID: ${PUID}
-```
-
-Docker Compose resolves all `${VAR}` references from the stacked env files.
-
----
-
-## 19. Locking and Concurrency
-
-HomeStack uses file-based locking via `fcntl.flock()` to prevent concurrent modifications.
-
-**When locks are acquired:**
-- All mutating commands (install, update, remove, backup, restore, start, stop, restart)
-- `config edit` and `config reset` (modifying config)
-
-**When locks are NOT acquired:**
-- Read-only commands (status, list, search, catalog, logs, exec, doctor, log)
-- `config show` (read-only)
-
-**Lock behavior:**
-- Non-blocking (`LOCK_NB`) — if another process holds the lock, immediately exit with error
-- User gets message: "Another homestack process is running. If this is wrong, remove .lock"
-- Lock file is `.lock` in `HOMESTACK_DIR`
-
-**SQLite concurrency:**
-- WAL mode provides concurrent reads with one writer
-- Each function opens its own short-lived connection
-- No long-lived transactions
-
----
-
-## 20. End-to-End Data Flows
+## 22. End-to-End Data Flows
 
 ### Install Flow
 
@@ -1829,65 +1842,7 @@ homestack restore jellyfin
 
 ---
 
-## 21. Error Handling Patterns
-
-### Pattern 1: `core.error()` + `sys.exit(1)`
-
-Used for unrecoverable user errors:
-```python
-if not core.is_installed(app_name):
-    core.error(f"'{app_name}' is not installed.")
-    sys.exit(1)
-```
-
-### Pattern 2: `raise SystemExit(1)`
-
-Click-friendly variant (same behavior as `sys.exit(1)`):
-```python
-if not core.is_installed(app_name):
-    core.error(f"'{app_name}' is not installed.")
-    raise SystemExit(1)
-```
-
-### Pattern 3: Rollback on exception
-
-Used in install.py — wraps the entire install in try/except:
-```python
-try:
-    # ... install steps ...
-except Exception:
-    core.warn("Installation failed, rolling back...")
-    compose_cmd(install_dir, "down", check=False)
-    shutil.rmtree(install_dir, ignore_errors=True)
-    db.db_remove_app(install_app)
-    sys.exit(1)
-```
-
-### Pattern 4: Silent audit logging
-
-`db_log_action()` is wrapped in try/except that passes silently. Logging failures must never crash the CLI.
-
-### Pattern 5: Docker fallback for permissions
-
-When `shutil.rmtree()` fails with `PermissionError` on container-owned files:
-```python
-try:
-    shutil.rmtree(target)
-except PermissionError:
-    subprocess.run(["docker", "run", "--rm", "-v", f"{target}:/cleanup",
-                     "busybox", "rm", "-rf", "/cleanup"])
-```
-
-### Pattern 6: `check=False` + `quiet_err=True`
-
-For Docker commands that can legitimately fail (e.g., `docker compose down` when already stopped):
-```python
-core.compose_cmd(install_dir, "down", check=False, quiet_err=True)
-```
-
----
-
-## 22. Adding a New Command
+## 23. Adding a New Command
 
 Step-by-step guide for adding a new CLI command:
 
@@ -1940,7 +1895,7 @@ Create `tests/unit/test_<verb>.py` with pytest tests.
 
 ---
 
-## 23. Adding a New Database Table
+## 24. Adding a New Database Table
 
 ### Step 1: Add CREATE TABLE to schema
 
