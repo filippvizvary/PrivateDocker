@@ -40,13 +40,14 @@
     - [backup.py](#144-backuppy)
     - [restore.py](#145-restorepy)
     - [start.py / stop.py / restart.py](#146-startpy--stoppy--restartpy)
-    - [status.py](#147-statuspy)
-    - [list.py](#148-listpy)
-    - [search.py](#149-searchpy)
-    - [catalog.py](#1410-catalogpy)
-    - [logs.py](#1411-logspy)
-    - [exec.py](#1412-execpy)
-    - [doctor.py](#1413-doctorpy)
+    - [config.py](#147-configpy)
+    - [status.py](#148-statuspy)
+    - [list.py](#149-listpy)
+    - [search.py](#1410-searchpy)
+    - [catalog.py](#1411-catalogpy)
+    - [logs.py](#1412-logspy)
+    - [exec.py](#1413-execpy)
+    - [doctor.py](#1414-doctorpy)
 
 **Part 4 — Supporting Files**
 
@@ -134,6 +135,7 @@ homestack/                          ← project root
 │       ├── start.py                ← `homestack start [app]`
 │       ├── stop.py                 ← `homestack stop [app]`
 │       ├── restart.py              ← `homestack restart [app]`
+│       ├── config.py               ← `homestack config <subcommand> <app>`
 │       ├── status.py               ← `homestack status [app]`
 │       ├── list.py                 ← `homestack list`
 │       ├── search.py               ← `homestack search [query]`
@@ -302,6 +304,7 @@ cli.add_command(cmd_install)
 | `start` | `commands/start.py` | Yes |
 | `stop` | `commands/stop.py` | Yes |
 | `restart` | `commands/restart.py` | Yes |
+| `config` | `commands/config.py` | Partial |
 | `status` | `commands/status.py` | No |
 | `list` | `commands/list.py` | No |
 | `search` | `commands/search.py` | No |
@@ -1243,7 +1246,86 @@ Converts bytes to human-readable format: `"1.5 MB"`, `"32.0 KB"`, etc.
 
 **Why `check=False` and `quiet_err=True` on stop/down?** Because `docker compose down` can fail if containers are already stopped. This shouldn't be treated as an error.
 
-### 14.7 `status.py`
+### 14.7 `config.py`
+
+**File:** `homestack/commands/config.py` (191 lines)
+
+**Command group:** `homestack config <subcommand>`
+
+This is a Click **group** (not a simple command) with three subcommands for managing app configuration.
+
+**Lock requirement:** Only the `edit` and `reset` subcommands acquire the lock. The `show` subcommand is read-only.
+
+#### Subcommand: `show`
+
+**`homestack config show <app>`**
+
+Displays the current configuration from `config.env` in a formatted table.
+
+**What it displays:**
+1. Reads `installed/<app>/config.env`
+2. For each `KEY=VALUE` line (skipping comments and blank lines):
+   - Queries `db_get_modified_configs()` to check if the key has been modified by the user
+   - Shows status as either "modified" (yellow) or "default" (green)
+   - Truncates values longer than 35 characters
+3. Displays in a three-column table: KEY, VALUE, STATUS
+
+**Example output:**
+```
+Config — Jellyfin
+
+  KEY                            VALUE                               STATUS
+  ---                            -----                               ------
+  JELLYFIN_SERVER                jellyfin/jellyfin:10.11.5           default
+  JELLYFIN_PORT                  8097                                modified
+```
+
+#### Subcommand: `edit`
+
+**`homestack config edit <app> <key> <value>`**
+
+Updates a configuration key in `config.env` and optionally restarts the app.
+
+**Steps:**
+1. Acquires lock (mutating operation)
+2. Reads current `config.env`
+3. Searches for the specified key
+4. If key not found → displays available keys and exits with error
+5. Updates the line: `KEY=new_value` (replaces entire line)
+6. Writes updated config back to file
+7. Calls `db_mark_config_modified(app, key, value)` to mark as user-modified
+8. Prompts user: "Restart app to apply changes?" (default: Yes)
+9. If yes → runs `compose_cmd(install_dir, "up", "-d", "--remove-orphans")`
+10. Logs action to audit log
+
+**Example:**
+```bash
+homestack config edit jellyfin JELLYFIN_PORT 8097
+```
+
+#### Subcommand: `reset`
+
+**`homestack config reset <app> <key>`**
+
+Resets a configuration key to its catalog default value.
+
+**Steps:**
+1. Acquires lock (mutating operation)
+2. Queries `config_overrides` table for the default value
+3. If no default tracked → error (this happens if the key was added manually, not from catalog)
+4. Updates `config.env` with the default value
+5. Clears the `is_user_modified` flag in the database (sets to 0)
+6. Logs action to audit log
+
+**Use case:** User edited a config value, realized it broke something, wants to go back to the catalog default without manually looking it up.
+
+**Example:**
+```bash
+homestack config reset jellyfin JELLYFIN_PORT
+# Resets JELLYFIN_PORT back to 8096 (catalog default)
+```
+
+### 14.8 `status.py`
 
 **File:** `homestack/commands/status.py` (82 lines)
 
@@ -1266,7 +1348,7 @@ Converts bytes to human-readable format: `"1.5 MB"`, `"32.0 KB"`, etc.
      - other → white
    - Updates health table in DB via `db_update_health()`
 
-### 14.8 `list.py`
+### 14.9 `list.py`
 
 **File:** `homestack/commands/list.py` (43 lines)
 
@@ -1276,7 +1358,7 @@ Prints a formatted table of all installed apps with columns: NAME, CATEGORY, POR
 
 Gets app metadata from each app's `app.yaml` and install date from `db_get_install_date()`.
 
-### 14.9 `search.py`
+### 14.10 `search.py`
 
 **File:** `homestack/commands/search.py` (47 lines)
 
@@ -1286,7 +1368,7 @@ If `query` is provided, calls `registry_search(query)`. Otherwise calls `registr
 
 Prints a table with: NAME, CATEGORY, PORT, DESCRIPTION. Apps that are already installed get a green ✓ marker.
 
-### 14.10 `catalog.py`
+### 14.11 `catalog.py`
 
 **File:** `homestack/commands/catalog.py` (57 lines)
 
@@ -1299,7 +1381,7 @@ This is a Click **group** (not a simple command), with two subcommands:
 
 If invoked without a subcommand (`homestack catalog`), defaults to `update`.
 
-### 14.11 `logs.py`
+### 14.12 `logs.py`
 
 **File:** `homestack/commands/logs.py` (36 lines)
 
@@ -1313,7 +1395,7 @@ Passes through to `compose_cmd(install_dir, "logs", "--tail", str(tail), ["--fol
 
 Handles `KeyboardInterrupt` gracefully for follow mode (user presses Ctrl+C to stop).
 
-### 14.12 `exec.py`
+### 14.13 `exec.py`
 
 **File:** `homestack/commands/exec.py` (50 lines)
 
@@ -1327,7 +1409,7 @@ Runs an arbitrary command inside a container.
 
 **Exit code pass-through:** `sys.exit(result.returncode)` — the CLI exits with whatever code the container command returned.
 
-### 14.13 `doctor.py`
+### 14.14 `doctor.py`
 
 **File:** `homestack/commands/doctor.py` (108 lines)
 

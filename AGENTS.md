@@ -142,7 +142,7 @@ Shell wrapper script. Activates the Python venv and delegates to the `homestack`
 - Activates `.venv/bin/activate`
 - Passes all arguments through to the `homestack` Python command
 
-### homestack/cli.py (~80 lines)
+### homestack/cli.py (~100 lines)
 
 Click CLI entry point. Defines the main command group and registers all subcommands.
 
@@ -153,7 +153,7 @@ Click CLI entry point. Defines the main command group and registers all subcomma
 | `cli()` | `@click.group` — main entry point; calls `db_init()` on every invocation |
 | `cmd_log(limit)` | `@cli.command("log")` — displays audit log entries with color coding |
 
-Registers 15 subcommands via `cli.add_command()`.
+Registers 16 subcommands via `cli.add_command()`.
 
 **Command dispatch table:**
 
@@ -167,6 +167,7 @@ Registers 15 subcommands via `cli.add_command()`.
 | `start` | `commands/start.py` | Yes |
 | `stop` | `commands/stop.py` | Yes |
 | `restart` | `commands/restart.py` | Yes |
+| `config` | `commands/config.py` | Partial (edit/reset only) |
 | `status` | `commands/status.py` | No |
 | `list` | `commands/list.py` | No |
 | `search` | `commands/search.py` | No |
@@ -400,6 +401,29 @@ Every command file exports a Click command object.
 
 #### start.py / stop.py / restart.py
 - Priority-ordered start/stop/restart for one or all apps
+
+#### config.py (~191 lines)
+Command group with three subcommands for managing app configuration:
+
+**`homestack config show <app>`**
+- Displays current configuration from `config.env`
+- Shows each key, value, and status (modified or default)
+- Queries DB to identify user-modified keys vs catalog defaults
+- Truncates long values to 35 chars for display
+
+**`homestack config edit <app> <key> <value>`**
+- Updates a key in `config.env` (requires lock)
+- Marks the key as user-modified in the database
+- Prompts to restart the app to apply changes
+- Fails if key doesn't exist (lists available keys)
+
+**`homestack config reset <app> <key>`**
+- Resets a config key to its catalog default (requires lock)
+- Retrieves default value from `config_overrides` table
+- Updates `config.env` and clears `is_user_modified` flag
+- Logs action to audit log
+
+All subcommands verify app is installed before proceeding.
 
 #### logs.py (~40 lines)
 - Takes app name argument + `-f/--follow` flag + `-n/--tail` (default 100)
