@@ -61,7 +61,7 @@ cli.add_command(cmd_doctor)
 
 # ── Log command (inline — too small for its own file) ──────────────────────
 
-@cli.command("log")
+@cli.command("log") #cli.add_command(cmd_log, name="log")
 @click.argument("limit", required=False, default=20, type=int)
 def cmd_log(limit: int) -> None:
     """Show the audit log."""
