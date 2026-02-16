@@ -4,6 +4,8 @@ A plug-and-play CLI for managing self-hosted Docker services.
 
 ## Installation
 
+### Standard Installation (Ubuntu/Debian with sudo)
+
 One command to install everything (Docker, Compose, SQLite, HomeStack):
 
 ```bash
@@ -19,6 +21,32 @@ sudo ./setup.sh
 ```
 
 The setup script automatically installs all dependencies (Docker, Docker Compose plugin, sqlite3, git) on Ubuntu, Debian, Fedora, CentOS, and RHEL.
+
+### Minimal Debian Installation (without sudo)
+
+For minimal Debian installs that don't have `sudo` installed or have PATH issues:
+
+```bash
+# Switch to root
+su -
+
+# Download and run the minimal Debian setup script
+curl -fsSL https://raw.githubusercontent.com/filippvizvary/homestack/main/setup-minimal-debian.sh -o setup-minimal-debian.sh
+bash setup-minimal-debian.sh
+```
+
+This script will:
+- Install `sudo` and fix PATH configuration
+- Install Docker and required dependencies
+- Create a `homestack` system user with proper permissions
+- Set up HomeStack and make it globally accessible
+
+After installation, switch to the homestack user:
+
+```bash
+su - homestack
+homestack search
+```
 
 ## Quick Start
 
@@ -46,6 +74,9 @@ homestack status
 | `homestack update [app]` | Update an app to the latest catalog version |
 | `homestack backup [app]` | Backup AppData and config for one or all apps |
 | `homestack restore <app>` | Restore an app from a backup |
+| `homestack config show <app>` | Display current configuration for an app |
+| `homestack config edit <app> <key> <value>` | Modify a config value and optionally restart |
+| `homestack config reset <app> <key>` | Reset a config key to catalog default |
 | `homestack list` | List installed apps |
 | `homestack search [query]` | Search the app catalog |
 | `homestack catalog [update]` | Sync app catalog from remote repository |

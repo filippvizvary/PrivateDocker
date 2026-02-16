@@ -50,6 +50,16 @@ def cmd_install(app_name: str, skip_checks: bool, defaults: bool) -> None:
         click.echo(click.style(f"Installing {display_name}...", fg="blue", bold=True))
         click.echo()
 
+        # Check dependencies (optional depends_on in app.yaml)
+        depends_on = yaml_get_array(str(app_yaml), "depends_on")
+        if depends_on:
+            missing = [dep for dep in depends_on if not core.is_installed(dep)]
+            if missing:
+                core.warn(f"Missing dependencies: {', '.join(missing)}")
+                click.echo(f"  {display_name} works best with: {', '.join(depends_on)}")
+                if not click.confirm("  Continue without them?", default=True):
+                    sys.exit(0)
+
         # Check port availability
         if port and not core.check_port_available(port):
             core.warn(f"Port {port} is already in use. Installation will continue but the app may fail to start.")

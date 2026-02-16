@@ -102,6 +102,16 @@ def _restore_from_file(
         click.echo("  Restore cancelled.")
         return
 
+    # Verify archive integrity before proceeding
+    core.step("Verifying backup integrity")
+    try:
+        with tarfile.open(archive, "r:gz") as tar:
+            tar.getmembers()  # Force reading all headers to detect corruption
+        core.success("Backup integrity verified")
+    except (tarfile.TarError, EOFError, OSError) as e:
+        core.error(f"Backup archive is corrupted or unreadable: {e}")
+        raise SystemExit(1)
+
     # Stop the app
     core.step(f"Stopping {display_name}")
     core.compose_cmd(install_dir, "down", check=False, quiet_err=True)

@@ -73,14 +73,24 @@ def cmd_doctor() -> None:
         click.echo(f"       {app_count} apps available")
     all_ok = all_ok and catalog_ok
 
-    # 8. Check disk space
+    # 8. Check WAL file size
+    wal_file = core.DB_FILE.with_name(core.DB_FILE.name + "-wal")
+    if wal_file.is_file():
+        wal_size = wal_file.stat().st_size
+        if wal_size > 10 * 1024 * 1024:
+            _check(f"WAL file ({wal_size // (1024*1024)} MB — consider running PRAGMA wal_checkpoint)", False)
+            all_ok = False
+        else:
+            _check("WAL file size OK", True)
+
+    # 9. Check disk space
     import os
     stat = os.statvfs(str(core.HOMESTACK_DIR))
     free_gb = (stat.f_bavail * stat.f_frsize) / (1024 ** 3)
     _ok = _check(f"Disk space ({free_gb:.1f} GB free)", free_gb > 1.0)
     all_ok = all_ok and _ok
 
-    # 9. List installed apps
+    # 10. List installed apps
     apps = core.get_installed_apps()
     click.echo()
     if apps:
@@ -88,7 +98,7 @@ def cmd_doctor() -> None:
     else:
         click.echo("  No apps installed")
 
-    # 10. Summary
+    # Summary
     click.echo()
     if all_ok:
         core.success("All checks passed")
