@@ -48,6 +48,33 @@ su - homestack
 homestack search
 ```
 
+### Fully Unattended Debian Install (Preseed + First Boot)
+
+For automated installs (no prompts), use the preseed and first-boot bundle in:
+
+- [UNATTENDED_DEBIAN.md](UNATTENDED_DEBIAN.md)
+- `deploy/unattended-debian/`
+
+### Non-Interactive Setup Mode (`setup.sh`)
+
+`setup.sh` also supports unattended execution directly:
+
+```bash
+sudo env \
+	NONINTERACTIVE=1 \
+	HOMESTACK_REAL_USER=<your-login-user> \
+	HOMESTACK_SETUP_EXISTING=fail \
+	HOMESTACK_RECONFIGURE=0 \
+	TZ=UTC \
+	./setup.sh
+```
+
+Available noninteractive flags:
+- `HOMESTACK_SETUP_EXISTING=fail|update|keep|reinstall`
+- `HOMESTACK_RECONFIGURE=0|1`
+- `HOMESTACK_REAL_USER=<login user>`
+- Optional: `TZ`, `PUID`, `PGID`, `HOMESTACK_APPS_REPO`, `HOMESTACK_DIR`
+
 ## Quick Start
 
 ```bash

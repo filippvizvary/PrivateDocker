@@ -106,7 +106,10 @@ homestack/
 │       └── doctor.py
 ├── config/
 │   └── homestack.env       # Global config (paths, timezone, UID/GID)
-├── setup.sh                # Interactive installer (Docker, deps, venv, config)
+├── setup.sh                # Installer (interactive + NONINTERACTIVE mode)
+├── setup-minimal-debian.sh # Root-first bootstrap for minimal Debian hosts
+├── deploy/
+│   └── unattended-debian/  # preseed + first-boot automation bundle
 ├── pyproject.toml          # Build config, dependencies, entry points
 ├── installed/              # Per-app runtime directories (created by install)
 │   └── <app>/
@@ -445,17 +448,44 @@ All subcommands verify app is installed before proceeding.
 #### status.py / list.py / search.py / catalog.py
 - Read-only commands, no lock required
 
-### setup.sh (~370 lines)
+### setup.sh (~460 lines)
 
-Interactive first-run installer:
-1. Installs system dependencies (`git`, `curl`)
-2. Installs Docker + Compose plugin
-3. Creates `homestack` system user and group
-4. Creates Python venv and `pip install -e .`
-5. Interactive config setup
-6. Writes `config/homestack.env`
-7. Initializes database and syncs catalog
-8. Sets permissions and creates CLI symlink
+First-run installer with interactive and unattended support:
+1. Requires root and resolves installer defaults
+2. Installs system dependencies (`git`, `curl`, `python3`, `sqlite3`)
+3. Installs Docker + Compose plugin
+4. Creates `homestack` system user and group
+5. Adds service + CLI users to required groups
+6. Handles existing install directories using policy (`fail|update|keep|reinstall`)
+7. Writes or preserves `config/homestack.env`
+8. Creates Python venv and installs HomeStack package
+9. Initializes database and syncs catalog
+10. Sets permissions and creates CLI symlink
+
+**Unattended env contract (`NONINTERACTIVE=1`):**
+- `HOMESTACK_SETUP_EXISTING` → `fail|update|keep|reinstall` (default: `fail`)
+- `HOMESTACK_RECONFIGURE` → `0|1` (default: `0`)
+- `HOMESTACK_REAL_USER` → target login user for group assignment
+- `TZ`, `PUID`, `PGID`, `HOMESTACK_APPS_REPO`, `HOMESTACK_DIR`
+
+### setup-minimal-debian.sh (~220 lines)
+
+Root-first bootstrap for minimal Debian where `sudo` and full root PATH are missing:
+1. Fixes PATH, installs base packages + `sudo`
+2. Installs Docker CE and Compose plugin
+3. Clones HomeStack and runs `setup.sh` as root
+4. Supports noninteractive mode for existing-dir handling (`fail|reinstall`)
+5. Passes unattended env vars through to `setup.sh`
+
+### deploy/unattended-debian/
+
+Bundle for fully unattended provisioning:
+- `preseed.cfg` — Debian installer automation template
+- `homestack-firstboot.service` — one-shot first-boot systemd unit
+- `homestack-firstboot.sh` — unattended bootstrap runner
+- `bootstrap.env.example` — env contract for first-boot execution
+
+Companion runbook: `UNATTENDED_DEBIAN.md`.
 
 ### config/homestack.env
 

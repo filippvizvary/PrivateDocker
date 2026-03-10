@@ -20,6 +20,14 @@ success() { echo -e "${GREEN}✓${NC} $1"; }
 warn()    { echo -e "${YELLOW}!${NC} $1"; }
 error()   { echo -e "${RED}✗${NC} $1"; }
 
+is_true() {
+  local value="${1:-}"
+  case "${value,,}" in
+    1|true|yes|y|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # --- Pre-flight ---
 if [[ $EUID -ne 0 ]]; then
   error "This script must be run as root (sudo ./setup.sh)"
@@ -31,6 +39,29 @@ HOMESTACK_GROUP="homestack"
 INSTALL_DIR="${HOMESTACK_DIR:-/homestack}"
 REPO_URL="https://github.com/filippvizvary/homestack.git"
 APPS_REPO_URL="https://github.com/filippvizvary/homestack-apps.git"
+NONINTERACTIVE="${NONINTERACTIVE:-0}"
+SETUP_EXISTING="${HOMESTACK_SETUP_EXISTING:-}"
+RECONFIGURE="${HOMESTACK_RECONFIGURE:-}"
+REAL_USER_OVERRIDE="${HOMESTACK_REAL_USER:-}"
+
+if is_true "$NONINTERACTIVE"; then
+  export DEBIAN_FRONTEND=noninteractive
+
+  if [[ -z "$SETUP_EXISTING" ]]; then
+    SETUP_EXISTING="fail"
+  fi
+  case "$SETUP_EXISTING" in
+    fail|update|keep|reinstall) ;;
+    *)
+      error "Invalid HOMESTACK_SETUP_EXISTING='${SETUP_EXISTING}'. Use: fail, update, keep, reinstall"
+      exit 1
+      ;;
+  esac
+
+  if [[ -z "$RECONFIGURE" ]]; then
+    RECONFIGURE="0"
+  fi
+fi
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════╗${NC}"
@@ -208,8 +239,13 @@ else
 fi
 
 # Add the calling user to homestack group so they can run the CLI
-REAL_USER="${SUDO_USER:-$USER}"
+REAL_USER="${REAL_USER_OVERRIDE:-${SUDO_USER:-$USER}}"
 if [[ "$REAL_USER" != "root" ]]; then
+  if ! id "$REAL_USER" &>/dev/null; then
+    error "Requested CLI user '${REAL_USER}' does not exist"
+    exit 1
+  fi
+
   if groups "$REAL_USER" | grep -q "$HOMESTACK_GROUP"; then
     success "'${REAL_USER}' is already in ${HOMESTACK_GROUP} group"
   else
@@ -239,16 +275,57 @@ mkdir -p "$INSTALL_DIR"
 chown "${HOMESTACK_USER}:${HOMESTACK_GROUP}" "$INSTALL_DIR"
 if [[ -d "${INSTALL_DIR}/.git" ]]; then
   warn "HomeStack already installed at ${INSTALL_DIR}"
-  read -rp "Update to latest version? [Y/n]: " update_choice
-  update_choice="${update_choice:-Y}"
-  if [[ "$update_choice" =~ ^[Yy]$ ]]; then
-    cd "$INSTALL_DIR"
-    git pull --rebase
-    success "Updated to latest version"
+  if is_true "$NONINTERACTIVE"; then
+    case "$SETUP_EXISTING" in
+      fail)
+        error "${INSTALL_DIR} already exists and is a git repo. Set HOMESTACK_SETUP_EXISTING=update|keep|reinstall"
+        exit 1
+        ;;
+      update)
+        cd "$INSTALL_DIR"
+        git pull --rebase
+        success "Updated to latest version"
+        ;;
+      keep)
+        step "Keeping existing repository without changes"
+        ;;
+      reinstall)
+        cd /
+        rm -rf "$INSTALL_DIR"
+        git clone "$REPO_URL" "$INSTALL_DIR"
+        success "Reinstalled HomeStack into ${INSTALL_DIR}"
+        ;;
+    esac
+  else
+    read -rp "Update to latest version? [Y/n]: " update_choice
+    update_choice="${update_choice:-Y}"
+    if [[ "$update_choice" =~ ^[Yy]$ ]]; then
+      cd "$INSTALL_DIR"
+      git pull --rebase
+      success "Updated to latest version"
+    fi
   fi
 elif [[ -d "$INSTALL_DIR" ]] && [[ ! -d "${INSTALL_DIR}/.git" ]]; then
   warn "${INSTALL_DIR} exists but is not a git repo."
-  warn "If running from a local copy, we'll configure in place."
+  if is_true "$NONINTERACTIVE"; then
+    case "$SETUP_EXISTING" in
+      fail)
+        error "${INSTALL_DIR} exists but is not a git repo. Set HOMESTACK_SETUP_EXISTING=keep|reinstall"
+        exit 1
+        ;;
+      keep|update)
+        warn "Proceeding in place with existing non-git directory"
+        ;;
+      reinstall)
+        cd /
+        rm -rf "$INSTALL_DIR"
+        git clone "$REPO_URL" "$INSTALL_DIR"
+        success "Reinstalled HomeStack into ${INSTALL_DIR}"
+        ;;
+    esac
+  else
+    warn "If running from a local copy, we'll configure in place."
+  fi
 else
   git clone "$REPO_URL" "$INSTALL_DIR"
   success "Cloned HomeStack to ${INSTALL_DIR}"
@@ -276,12 +353,20 @@ CONFIG_FILE="${INSTALL_DIR}/config/homestack.env"
 
 if [[ -f "$CONFIG_FILE" ]]; then
   warn "Configuration already exists at ${CONFIG_FILE}"
-  read -rp "Reconfigure? [y/N]: " reconfig
-  reconfig="${reconfig:-N}"
-  if [[ ! "$reconfig" =~ ^[Yy]$ ]]; then
-    step "Keeping existing configuration"
+  if is_true "$NONINTERACTIVE"; then
+    if is_true "$RECONFIGURE"; then
+      configure=true
+    else
+      step "Keeping existing configuration"
+    fi
   else
-    configure=true
+    read -rp "Reconfigure? [y/N]: " reconfig
+    reconfig="${reconfig:-N}"
+    if [[ ! "$reconfig" =~ ^[Yy]$ ]]; then
+      step "Keeping existing configuration"
+    else
+      configure=true
+    fi
   fi
 else
   configure=true
@@ -293,19 +378,29 @@ if [[ "${configure:-false}" == "true" ]]; then
 
   # Timezone
   current_tz=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "UTC")
-  read -rp "  Timezone [${current_tz}]: " user_tz
-  user_tz="${user_tz:-$current_tz}"
+  if is_true "$NONINTERACTIVE"; then
+    user_tz="${TZ:-$current_tz}"
+    user_apps_repo="${HOMESTACK_APPS_REPO:-$APPS_REPO_URL}"
+  else
+    read -rp "  Timezone [${current_tz}]: " user_tz
+    user_tz="${user_tz:-$current_tz}"
+  fi
 
   # User IDs (default to the homestack system user)
-  read -rp "  User ID (PUID) [${HOMESTACK_UID}]: " user_puid
-  user_puid="${user_puid:-$HOMESTACK_UID}"
+  if is_true "$NONINTERACTIVE"; then
+    user_puid="${PUID:-$HOMESTACK_UID}"
+    user_pgid="${PGID:-$HOMESTACK_GID}"
+  else
+    read -rp "  User ID (PUID) [${HOMESTACK_UID}]: " user_puid
+    user_puid="${user_puid:-$HOMESTACK_UID}"
 
-  read -rp "  Group ID (PGID) [${HOMESTACK_GID}]: " user_pgid
-  user_pgid="${user_pgid:-$HOMESTACK_GID}"
+    read -rp "  Group ID (PGID) [${HOMESTACK_GID}]: " user_pgid
+    user_pgid="${user_pgid:-$HOMESTACK_GID}"
 
-  # Apps repo URL
-  read -rp "  App catalog repo [${APPS_REPO_URL}]: " user_apps_repo
-  user_apps_repo="${user_apps_repo:-$APPS_REPO_URL}"
+    # Apps repo URL
+    read -rp "  App catalog repo [${APPS_REPO_URL}]: " user_apps_repo
+    user_apps_repo="${user_apps_repo:-$APPS_REPO_URL}"
+  fi
 
   mkdir -p "${INSTALL_DIR}/config"
 

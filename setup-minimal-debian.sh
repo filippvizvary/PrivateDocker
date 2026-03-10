@@ -16,6 +16,14 @@ success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
+is_true() {
+    local value="${1:-}"
+    case "${value,,}" in
+        1|true|yes|y|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Check if running as root
 if [ "$(id -u)" -ne 0 ]; then
     error "This script must be run as root. Use: su -c 'bash setup-minimal-debian.sh'"
@@ -23,6 +31,13 @@ fi
 
 info "HomeStack Setup for Minimal Debian"
 echo ""
+
+NONINTERACTIVE="${NONINTERACTIVE:-0}"
+SETUP_EXISTING="${HOMESTACK_SETUP_EXISTING:-}"
+
+if is_true "$NONINTERACTIVE" && [ -z "$SETUP_EXISTING" ]; then
+    SETUP_EXISTING="fail"
+fi
 
 # Step 1: Fix PATH for current session
 info "Setting up PATH..."
@@ -118,12 +133,26 @@ info "Setting up HomeStack in $HOMESTACK_DIR..."
 
 if [ -d "$HOMESTACK_DIR" ]; then
     warn "Directory $HOMESTACK_DIR already exists"
-    read -p "Remove and reinstall? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -rf "$HOMESTACK_DIR"
+    if is_true "$NONINTERACTIVE"; then
+        case "$SETUP_EXISTING" in
+            reinstall)
+                rm -rf "$HOMESTACK_DIR"
+                ;;
+            fail|"")
+                error "$HOMESTACK_DIR already exists. Set HOMESTACK_SETUP_EXISTING=reinstall to overwrite."
+                ;;
+            *)
+                error "Unsupported HOMESTACK_SETUP_EXISTING='$SETUP_EXISTING' for setup-minimal-debian.sh (use fail or reinstall)."
+                ;;
+        esac
     else
-        error "Installation cancelled"
+        read -p "Remove and reinstall? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -rf "$HOMESTACK_DIR"
+        else
+            error "Installation cancelled"
+        fi
     fi
 fi
 
@@ -138,6 +167,14 @@ success "File ownership set"
 
 # Step 12: Run the main setup script as root
 info "Running HomeStack setup..."
+NONINTERACTIVE="$NONINTERACTIVE" \
+HOMESTACK_SETUP_EXISTING="${SETUP_EXISTING:-}" \
+HOMESTACK_RECONFIGURE="${HOMESTACK_RECONFIGURE:-0}" \
+HOMESTACK_REAL_USER="${HOMESTACK_REAL_USER:-}" \
+TZ="${TZ:-}" \
+PUID="${PUID:-}" \
+PGID="${PGID:-}" \
+HOMESTACK_APPS_REPO="${HOMESTACK_APPS_REPO:-}" \
 bash "$HOMESTACK_DIR/setup.sh" || error "HomeStack setup failed"
 
 # Step 13: Create symlink in /usr/local/bin for global access

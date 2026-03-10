@@ -53,7 +53,7 @@
 
 15. [Global Config — `config/homestack.env`](#15-global-config)
 16. [Build Configuration — `pyproject.toml`](#16-build-configuration)
-17. [Setup Script — `setup.sh`](#17-setup-script)
+17. [Setup & Provisioning Scripts](#17-setup--provisioning-scripts)
 
 **Part 5 — Cross-Cutting Concepts**
 
@@ -143,9 +143,14 @@ homestack/                          ← project root
 │       ├── logs.py                 ← `homestack logs <app>`
 │       ├── exec.py                 ← `homestack exec <app> <cmd>`
 │       └── doctor.py               ← `homestack doctor`
-├── config/
+├── confiAdded full unattended install documentation to AGENTS.md: updated installer descriptions, new env contract for NONINTERACTIVE=1, and new provisioning bundle details under unattended-debian.
+Expanded installation guidance in README.md: added direct noninteractive setup.sh usage and documented all supported unattended flags.
+Updated setup architecture in DEVELOPER_GUIDE.md: renamed section 17 to Setup & Provisioning Scripts and added dedicated subsections for setup.sh, setup-minimal-debian.sh, and unattended-debian.
+Key referencesg/
 │   └── homestack.env               ← global env vars (paths, TZ, UID/GID)
-├── setup.sh                        ← first-run interactive installer
+├── setup.sh                        ← installer (interactive + NONINTERACTIVE mode)
+├── setup-minimal-debian.sh         ← root-first minimal Debian bootstrap
+├── deploy/unattended-debian/       ← preseed + first-boot automation bundle
 ├── pyproject.toml                  ← build config + dependencies
 ├── installed/                      ← per-app runtime dirs (created by install)
 ├── AppData/                        ← persistent container data (bind mounts)
@@ -1496,25 +1501,58 @@ dev = ["pytest>=7.0"]
 
 ---
 
-## 17. Setup Script
+## 17. Setup & Provisioning Scripts
 
-**File:** `setup.sh` (~370 lines)
+### 17.1 `setup.sh`
 
-Interactive first-run installer. Only used once to bootstrap a new HomeStack installation.
+**File:** `setup.sh` (~460 lines)
+
+First-run installer for new hosts. Supports both interactive and unattended execution.
 
 **What it does:**
 1. Checks for root/sudo
-2. Installs system packages: `git`, `curl`
+2. Installs system packages: `git`, `curl`, `python3`, `sqlite3`
 3. Installs Docker + Docker Compose plugin
 4. Creates `homestack` system user and group
-5. Creates Python 3 venv at `.venv/`
-6. Runs `pip install -e .` inside the venv
-7. Interactively configures paths and timezone
-8. Writes `config/homestack.env`
+5. Adds service and CLI users to required groups (`homestack`, `docker`)
+6. Creates Python 3 venv at `.venv/`
+7. Installs package into the venv
+8. Configures and writes `config/homestack.env`
 9. Initializes the database
 10. Syncs the catalog
 11. Sets file permissions
 12. Creates symlink for `homestack` to `/usr/local/bin/`
+
+**Unattended mode (`NONINTERACTIVE=1`):**
+- `HOMESTACK_SETUP_EXISTING=fail|update|keep|reinstall` (default: `fail`)
+- `HOMESTACK_RECONFIGURE=0|1` (default: `0`)
+- `HOMESTACK_REAL_USER=<login user>` (for group assignment)
+- Optional overrides: `TZ`, `PUID`, `PGID`, `HOMESTACK_APPS_REPO`, `HOMESTACK_DIR`
+
+### 17.2 `setup-minimal-debian.sh`
+
+Root-first helper for minimal Debian environments where `sudo` and full admin PATH are missing.
+
+**What it does:**
+1. Fixes PATH and installs baseline packages
+2. Installs Docker CE + Compose plugin
+3. Clones HomeStack into `/homestack`
+4. Runs `setup.sh` as root
+5. Forwards unattended env variables to `setup.sh`
+
+In unattended mode, existing-dir handling is intentionally strict:
+- `HOMESTACK_SETUP_EXISTING=fail` (default) or `reinstall`
+
+### 17.3 `deploy/unattended-debian/`
+
+This directory provides a complete unattended provisioning bundle:
+
+- `preseed.cfg` — Debian installer automation template
+- `homestack-firstboot.service` — one-shot systemd unit executed on first boot
+- `homestack-firstboot.sh` — idempotent bootstrap runner
+- `bootstrap.env.example` — environment contract template
+
+Reference runbook: `UNATTENDED_DEBIAN.md`.
 
 ---
 

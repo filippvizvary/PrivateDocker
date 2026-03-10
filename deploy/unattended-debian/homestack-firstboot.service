@@ -1,0 +1,12 @@
+[Unit]
+Description=HomeStack first-boot bootstrap
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/homestack-firstboot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
