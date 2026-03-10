@@ -136,9 +136,9 @@ info "Setting file ownership..."
 chown -R $HOMESTACK_USER:$HOMESTACK_USER "$HOMESTACK_DIR"
 success "File ownership set"
 
-# Step 12: Run the main setup script as the homestack user
+# Step 12: Run the main setup script as root
 info "Running HomeStack setup..."
-sudo -u $HOMESTACK_USER bash "$HOMESTACK_DIR/setup.sh" || error "HomeStack setup failed"
+bash "$HOMESTACK_DIR/setup.sh" || error "HomeStack setup failed"
 
 # Step 13: Create symlink in /usr/local/bin for global access
 info "Creating global command symlink..."
